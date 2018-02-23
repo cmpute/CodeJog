@@ -1,5 +1,6 @@
-mark = set()
 limit = 1000
+
+mark = set()
 three = five = total = 0
 while three < limit:
     total += three

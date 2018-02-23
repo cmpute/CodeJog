@@ -1,4 +1,5 @@
 limit = 20
+
 total = 1
 def gcd(a, b):
     if(b > a):
