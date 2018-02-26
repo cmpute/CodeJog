@@ -1,5 +1,5 @@
 limit = 1000
-
+########## Solution ##########
 mark = set()
 three = five = total = 0
 while three < limit:

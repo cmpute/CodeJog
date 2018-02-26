@@ -1,9 +1,10 @@
 target = 600851475143
-
+########## Solution ##########
 from math import ceil, sqrt
 limit = ceil(sqrt(target))
 pfilter = set(range(2, limit))
 factors = set()
+
 for i in range(2, limit): # Sieve of Eratosthenes
     if i not in pfilter:
         continue

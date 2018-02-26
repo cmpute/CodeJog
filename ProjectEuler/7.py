@@ -1,6 +1,8 @@
+target = 10001
+########## Solution ##########
 primes = [2]
 current = 3
-while len(primes) < 10001:
+while len(primes) < target:
     flag = True
     for prime in primes:
         if current % prime == 0:
