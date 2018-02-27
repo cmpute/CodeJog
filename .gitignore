@@ -93,3 +93,6 @@ target/
 *.exe
 *.out
 *.app
+
+########## Cython ##########
+ProjectEuler/em\.c
