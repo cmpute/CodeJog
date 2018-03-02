@@ -171,6 +171,8 @@ def isprime(pyint target, int confidence=5):
         pyint x, pre
         pyint u = target - 1
         int idx = bisect_left(prime_list, target)
+    if target <= 1:
+        raise ValueError("Nonsense to judge a number below 2")
     if idx != len(prime_list) and prime_list[idx] == target:
         return True
 
