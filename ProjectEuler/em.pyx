@@ -111,6 +111,17 @@ def nprimes(pyint count, loop_predicate=None):
         primes(prime_current * count // len(prime_list), loop_predicate)
     return prime_list
 
+def iterprimes():
+    '''
+    Returns an endless iterator of primes.
+    '''
+    cdef pyint current = 0
+    while True:
+        if current >= len(prime_list):
+            primes(prime_current << 1)
+        yield prime_list[current]
+        current += 1
+
 def gcd(pyint a, pyint b):
     '''
     Returns gcd(a, b)
@@ -170,9 +181,10 @@ def isprime(pyint target, int confidence=5):
         int shift = 0
         pyint x, pre
         pyint u = target - 1
-        int idx = bisect_left(prime_list, target)
+        int idx
     if target <= 1:
-        raise ValueError("Nonsense to judge a number below 2")
+        return False
+    idx = bisect_left(prime_list, target)
     if idx != len(prime_list) and prime_list[idx] == target:
         return True
 
