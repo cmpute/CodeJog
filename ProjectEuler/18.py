@@ -1,4 +1,4 @@
-triangle = [
+TRIANGLE = [
     [75],
     [95,64],
     [17,47,82],
@@ -15,18 +15,22 @@ triangle = [
     [63,66, 4,68,89,53,67,30,73,16,69,87,40,31],
     [ 4,62,98,27,23, 9,70,98,73,93,38,53,60, 4,23],
 ]
-########## Solution ##########
-lastmax = triangle[0]
-currmax = []
-for row in triangle:
-    if(len(row) == 1): continue
-    for i in range(len(row)):
-        if i == 0:
-            currmax.append(lastmax[0] + row[i])
-        elif i == len(lastmax):
-            currmax.append(lastmax[-1] + row[i])
-        else:
-            currmax.append(max(lastmax[i-1], lastmax[i]) + row[i])
-    lastmax = currmax
+
+def solve(triangle = TRIANGLE):
+    lastmax = triangle[0]
     currmax = []
-print(max(lastmax))
+    for row in triangle:
+        if(len(row) == 1): continue
+        for i in range(len(row)):
+            if i == 0:
+                currmax.append(lastmax[0] + row[i])
+            elif i == len(lastmax):
+                currmax.append(lastmax[-1] + row[i])
+            else:
+                currmax.append(max(lastmax[i-1], lastmax[i]) + row[i])
+        lastmax = currmax
+        currmax = []
+    return max(lastmax)
+
+if __name__ == "__main__":
+	print(solve())

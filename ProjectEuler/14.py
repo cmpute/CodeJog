@@ -1,5 +1,5 @@
-limit = 1000000
-########## Solution ##########
+LIMIT = 1000000
+
 path = {1: 4}
 length = {1: 0}
 
@@ -14,6 +14,10 @@ def expand(n):
     path[n] = target
     length[n] = length[target] + 1
 
-for current in range(1, limit):
-    expand(current)
-print(max(length, key=length.get))
+def solve(limit = LIMIT):
+    for current in range(1, limit):
+        expand(current)
+    return max(length, key=length.get)
+
+if __name__ == "__main__":
+	print(solve())

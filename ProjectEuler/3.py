@@ -1,4 +1,8 @@
-target = 600851475143
-########## Solution ##########
-from em import factors
-print(max(factors(target)))
+TARGET = 600851475143
+
+def solve(target = TARGET):
+    from em import factors
+    return max(factors(target))
+
+if __name__ == "__main__":
+	print(solve())

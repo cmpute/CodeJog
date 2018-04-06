@@ -1,5 +1,11 @@
-# Brute-force and use python built-in
-target = 100
-########## Solution ##########
-from math import factorial
-print(sum(int(c) for c in str(factorial(100))))
+TARGET = 100
+
+def solve(target = TARGET):
+    '''
+    Brute-force solution using python built-in
+    '''
+    from math import factorial
+    return sum(int(c) for c in str(factorial(100)))
+
+if __name__ == "__main__":
+	print(solve())

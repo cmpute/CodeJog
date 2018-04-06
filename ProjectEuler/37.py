@@ -1,4 +1,3 @@
-########## Solutions ##########
 from itertools import islice
 from em import isprime, iterprimes
 
@@ -17,4 +16,8 @@ def check(target):
         target //= 10
     return True
 
-print(sum(islice(filter(check, iterprimes()), 4, 15)))
+def solve():
+    return sum(islice(filter(check, iterprimes()), 4, 15))
+
+if __name__ == "__main__":
+	print(solve())

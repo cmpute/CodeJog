@@ -1,5 +1,5 @@
-limit = 1000
-########## Solution ##########
+LIMIT = 1000
+
 nfirst = [4,3,3,5,4,4,3,5,5,4] # 0-9
 nteen = [3,6,6,8,8,7,7,9,8,8] # 10-19
 nty = [None,None,6,6,5,5,5,7,6,6] # 20-90
@@ -19,4 +19,8 @@ def count_english(n):
     if 1000 <= n < 1000000:
         return count_english(n // 1000) + nthousand + (count_english(n % 1000) if n % 1000 != 0 else 0)
 
-print(sum(count_english(i) for i in range(1, limit + 1)))
+def solve(limit = LIMIT):
+    return sum(count_english(i) for i in range(1, limit + 1))
+
+if __name__ == "__main__":
+	print(solve())

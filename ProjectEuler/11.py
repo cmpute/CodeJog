@@ -1,5 +1,5 @@
-adjacents = 4
-numbers = [
+ADJACENTS = 4
+NUMBERS = [
     [ 8, 2,22,97,38,15, 0,40, 0,75, 4, 5, 7,78,52,12,50,77,91, 8],
     [49,49,99,40,17,81,18,57,60,87,17,40,98,43,69,48, 4,56,62, 0],
     [81,49,31,73,55,79,14,29,93,71,40,67,53,88,30, 3,49,13,36,65],
@@ -21,15 +21,12 @@ numbers = [
     [20,73,35,29,78,31,90, 1,74,31,49,71,48,86,81,16,23,57, 5,54],
     [ 1,70,54,71,83,51,54,69,16,92,33,48,61,43,52, 1,89,19,67,48],
 ]
-########## Solution ##########
-import numpy as np
-numbers = np.array(numbers, dtype=int)
 
 def multiply(line):
     # actually groups with 0 can be previously removed
     return line[0] * line[1] * line[2] * line[3]
 
-def max_in_line(line):
+def max_in_line(line, adjacents):
     if len(line) < adjacents:
         return float('-inf')
     if len(line) == adjacents:
@@ -73,15 +70,22 @@ def max_in_line(line):
 
     return max(map(lambda i: multiply(line[i-3 : i+1]), candidate))
 
-results = []
-# Four directions
-for line in numbers:
-    results.append(max_in_line(line))
-for line in numbers.T:
-    results.append(max_in_line(line))
-for off in range(1-len(numbers), len(numbers)-1):
-    results.append(max_in_line(numbers.diagonal(offset=off)))
-numbersr = np.fliplr(numbers)
-for off in range(1-len(numbers), len(numbers)-1):
-    results.append(max_in_line(numbersr.diagonal(offset=off)))
-print(max(results))
+def solve(adjacents = ADJACENTS, numbers = NUMBERS):
+    import numpy as np
+    numbers = np.array(numbers, dtype=int)
+
+    results = []
+    # Four directions
+    for line in numbers:
+        results.append(max_in_line(line, adjacents))
+    for line in numbers.T:
+        results.append(max_in_line(line, adjacents))
+    for off in range(1-len(numbers), len(numbers)-1):
+        results.append(max_in_line(numbers.diagonal(offset=off), adjacents))
+    numbersr = np.fliplr(numbers)
+    for off in range(1-len(numbers), len(numbers)-1):
+        results.append(max_in_line(numbersr.diagonal(offset=off), adjacents))
+    return max(results)
+
+if __name__ == "__main__":
+	print(solve())

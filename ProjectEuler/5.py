@@ -1,13 +1,12 @@
-limit = 20
-########## Solution ##########
-def gcd(a, b):
-    if(b > a):
-        return gcd(b, a)
-    if(a % b == 0):
-        return b
-    return gcd(b, a % b)
+LIMIT = 20
 
-total = 1
-for i in range(2, limit + 1):
-    total = total * i // gcd(total, i)
-print(total)
+def solve(limit = LIMIT):
+    from em import gcd
+    
+    total = 1
+    for i in range(2, limit + 1):
+        total = total * i // gcd(total, i)
+    return total
+
+if __name__ == "__main__":
+	print(solve())
