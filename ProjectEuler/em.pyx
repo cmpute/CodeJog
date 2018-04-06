@@ -65,8 +65,8 @@ def primes(pyint limit, loop_predicate=None):
         set sieve = set(range(prime_current | 1, limit, 2)) # can be an array
         pyint multi
     if(limit <= prime_current):
-        # XXX: return whole list or just the primes lower than limit?
-        return prime_list
+        # prevent to execute this because list slicing is relatively expensive
+        return prime_list[:bisect_left(prime_list, limit)]
 
     # Linear Sieve (with 2 pre-filtered)
     for prime in prime_list[1:]: # skip 2
@@ -152,19 +152,23 @@ def mulmod(pyint a, pyint b, pyint mod):
 def powmod(pyint a, pyint exp, pyint mod):
     '''
     Return (a ^ exp) % mod, even works for very large numbers
-    '''
+    
+    Implementation
+    --------------
     cdef:
         pyint multi = a
         pyint result = 1
     if exp == 1:
-        return a % mod;
+        return a % mod
     a %= mod;
     while exp > 0:
         if exp & 1:
             result = mulmod(result, multi, mod)
         multi = mulmod(multi, multi ,mod)
-        exp >>= 1;
-    return result;
+        exp >>= 1
+    return result
+    '''
+    return pow(a, exp, mod)
 
 def isprime(pyint target, int confidence=5):
     '''
@@ -184,6 +188,8 @@ def isprime(pyint target, int confidence=5):
         int idx
     if target <= 1:
         return False
+    
+    # find in list
     idx = bisect_left(prime_list, target)
     if idx != len(prime_list) and prime_list[idx] == target:
         return True
@@ -252,11 +258,13 @@ def divisor(pyint target):
                 j <<= 1
     return p
 
-def factors(pyint target):
+def factors(pyint target, int threshold=10000):
     '''
-    Return the prime factors of target
+    Return the prime factors of target. (Use built-in)
 
-    # TODO: Check whether regression is actually needed
+    Parameters
+    ----------
+    threshold: The algorithm will regress to naive one when under the threshold (exponential).
     '''
     cdef pyint p = 1
     cdef dict f1, f2
@@ -264,22 +272,29 @@ def factors(pyint target):
     if isprime(target):
         return {target: 1}
     
-    if lb(target) < 10: # regress to naive method
+    if lb(target) < threshold: # regress to naive method
         f1 = dict() 
-        for prime in primes(target): 
+        for prime in primes(sqrt(target) + 1): 
             while target % prime == 0: 
-                target = target // prime 
+                target //= prime 
                 if prime not in f1: 
                     f1[prime] = 0 
-                f1[prime] += 1 
+                f1[prime] += 1
+            if target == 1:
+                break
+        if target != 1:
+            f1[target] = 1
         return f1 
 
     while p == 1:
-        # If here is an error occurred, that is isprime() failed to judge a prime
-        p = divisor(target)
+        try:
+            # If here is an error occurred, that is isprime() failed to judge a prime
+            p = divisor(target)
+        finally:
+            continue
     
-    f1 = factors(p)
-    f2 = factors(target // p)
+    f1 = factors(p, threshold)
+    f2 = factors(target // p, threshold)
     for factor in f1:
         if factor in f2:
             f2[factor] += f1[factor]

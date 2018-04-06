@@ -11,7 +11,7 @@ def main():
 		print("Problem {:3d}: {:9.2f} ms     {}".format(
 			idx, elapsedtime * 1000,
 			"PASS" if result == expect else "FAIL"))
-	print("Total computation time: {} ms".format(totaltime))
+	print("Total computation time: {} s".format(totaltime))
 
 ANSWERS = {
 	  1: "233168",
@@ -59,6 +59,11 @@ ANSWERS = {
 	 43: "16695334890",
 	 44: "5482660",
 	 45: "1533776805",
+     46: "5777",
+	 47: "134043",
+	 48: "9110846700",
+	 49: "296962999629",
+	 50: "997651",
 }
 
 if __name__ == "__main__":
