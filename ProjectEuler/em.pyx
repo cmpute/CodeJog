@@ -286,3 +286,30 @@ def factors(pyint target):
         else:
             f2[factor] = f1[factor]
     return f2
+
+def iterpolygonal(pyint s):
+    '''
+    Returns an endless iterator of polygonal numbers
+
+    Parameters
+    ----------
+    s : The number of sides
+
+    Notes
+    -----
+    Triangular numbers: s = 3
+    Square numbers: s = 4
+    Pentagonal numbers: s = 5
+    Hexagonal numbers: s = 6
+
+    Reference
+    ---------
+    https://en.wikipedia.org/wiki/Polygonal_number
+    '''
+    s -= 2
+    cdef pyint n = 0
+    cdef pyint result = 0
+    while True:
+        result += n * s + 1
+        n += 1
+        yield result
