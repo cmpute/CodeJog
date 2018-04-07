@@ -18,6 +18,17 @@ def lb(pyint target):
         counter += 1
     return counter
 
+def log(pyint target, pyint base):
+    '''
+    Returns floor(log(base, target))
+    If target is 0, then -1 is returned
+    '''
+    cdef int counter = -1
+    while target > 0:
+        target //= base
+        counter += 1
+    return counter
+
 def sqrt(pyint target):
     '''
     Returns floor(sqrt(target))
@@ -60,7 +71,7 @@ def primes(pyint limit, loop_predicate=None):
     # Notes
     Works awkward if limit > 2^25 and won't work if limit > 2^30
     '''
-    global prime_list, prime_current
+    global prime_current
     cdef:
         set sieve = set(range(prime_current | 1, limit, 2)) # can be an array
         pyint multi
@@ -121,6 +132,14 @@ def iterprimes():
             primes(prime_current << 1)
         yield prime_list[current]
         current += 1
+
+def clearprimes():
+    '''
+    Clear primes to prevent performance influence of factorization
+    '''
+    global prime_current
+    prime_list = [2]
+    prime_current = 3
 
 def gcd(pyint a, pyint b):
     '''
@@ -258,7 +277,7 @@ def divisor(pyint target):
                 j <<= 1
     return p
 
-def factors(pyint target, int threshold=10000):
+def factors(pyint target, int threshold=100):
     '''
     Return the prime factors of target. (Use built-in)
 
@@ -274,7 +293,7 @@ def factors(pyint target, int threshold=10000):
     
     if lb(target) < threshold: # regress to naive method
         f1 = dict() 
-        for prime in primes(sqrt(target) + 1): 
+        for prime in primes(sqrt(target) + 1):
             while target % prime == 0: 
                 target //= prime 
                 if prime not in f1: 

@@ -17,11 +17,11 @@ def solve(fmin = FMIN):
                 f2[factor] = f1[factor]
         f2[2] -= 1 # 1+2+...+n = n*(n+1)/2
 
-        sum = 1
+        total = 1
         for factor in f2:
-            sum *= f2[factor] + 1
+            total *= f2[factor] + 1
 
-        if sum >= fmin:
+        if total >= fmin:
             return target * (target+1) // 2
 
         target += 1
