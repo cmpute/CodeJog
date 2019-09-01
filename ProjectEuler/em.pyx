@@ -1,13 +1,20 @@
 '''
-Math library for Project Euler
+Math library for Project Euler (em: Euler Math)
 Copyright (C) 2018- Jacob Zhong
+
+Compile: cythonize -i em.pyx
+TODO:
+    Add decorator for easy storage
+    Parallel prime sieve
 '''
 
+from warnings import warn
 from cpython cimport int as pyint
 from random import randrange
 from bisect import bisect_left
 
-def lb(pyint target):
+# ----- Fase Unary Functions -----
+cpdef int lb(pyint target):
     '''
     Returns floor(log(2, target))
     If target is 0, then -1 is returned
@@ -18,7 +25,7 @@ def lb(pyint target):
         counter += 1
     return counter
 
-def log(pyint target, pyint base):
+cpdef int log(pyint target, pyint base):
     '''
     Returns floor(log(base, target))
     If target is 0, then -1 is returned
@@ -29,7 +36,7 @@ def log(pyint target, pyint base):
         counter += 1
     return counter
 
-def sqrt(pyint target):
+cpdef pyint sqrt(pyint target):
     '''
     Returns floor(sqrt(target))
 
@@ -38,9 +45,9 @@ def sqrt(pyint target):
     '''
     cdef:
         unsigned int hbit = lb(target) >> 1
-        unsigned int test
-        unsigned int hnum = 1 << hbit
-        unsigned int result = 0
+        pyint test
+        pyint hnum = 1 << hbit
+        pyint result = 0
     
     while True:
         test = ((result << 1) + hnum) << hbit
@@ -53,95 +60,7 @@ def sqrt(pyint target):
         hnum >>= 1
     return result
 
-# Add more primes here to fasten sieve
-cdef list prime_list = [2]
-cdef pyint prime_current = 3
-
-def primes(pyint limit, loop_predicate=None):
-    '''
-    Returns all primes under limit. The primes are sorted.
-
-    # Params (for optimization)
-    loop_predicate: A function to judge whether the loop will be stopped immediately.
-        If loop_predicate(prime) is False, then the loop ends.
-    
-    # Reference
-    https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n/3035188#3035188
-
-    # Notes
-    Works awkward if limit > 2^25 and won't work if limit > 2^30
-    '''
-    global prime_current
-    cdef:
-        set sieve = set(range(prime_current | 1, limit, 2)) # can be an array
-        pyint multi
-    if(limit <= prime_current):
-        # prevent to execute this because list slicing is relatively expensive
-        return prime_list[:bisect_left(prime_list, limit)]
-
-    # Linear Sieve (with 2 pre-filtered)
-    for prime in prime_list[1:]: # skip 2
-        multi = prime * prime
-        if multi < prime_current:
-            multi = prime * ((prime_current // prime) | 1)
-        while multi < limit:
-            if multi in sieve:
-                sieve.remove(multi)
-            multi += 2 * prime
-
-    for prime in range(prime_current | 1, sqrt(limit) + 1, 2):
-        if prime not in sieve:
-            continue
-        multi = prime * prime
-        while multi < limit:
-            if multi in sieve:
-                sieve.remove(multi)
-            multi += 2 * prime
-        if loop_predicate and not loop_predicate(prime):
-            break
-
-    prime_list.extend(sorted(sieve))
-    prime_current = limit
-    
-    # loop the rest of the primes
-    if loop_predicate:
-        loop_start = sqrt(limit) + 1
-        for prime in prime_list:
-            if prime < loop_start:
-                continue
-            if not loop_predicate(prime):
-                break
-
-    return prime_list
-
-def nprimes(pyint count, loop_predicate=None):
-    '''
-    Returns primes of certain amount counting from 2. The primes are sorted.
-    '''
-    while len(prime_list) < count:
-        primes(prime_current * count // len(prime_list), loop_predicate)
-    return prime_list
-
-def iterprimes():
-    '''
-    Returns an endless iterator of primes.
-    '''
-    cdef pyint current = 0
-    while True:
-        if current >= len(prime_list):
-            primes(prime_current << 1)
-        yield prime_list[current]
-        current += 1
-
-def clearprimes():
-    '''
-    Clear primes to prevent performance influence of factorization
-    '''
-    global prime_current
-    prime_list = [2]
-    prime_current = 3
-
-def gcd(pyint a, pyint b):
+cpdef pyint gcd(pyint a, pyint b):
     '''
     Returns gcd(a, b)
     '''
@@ -151,7 +70,7 @@ def gcd(pyint a, pyint b):
         return b
     return gcd(b, a % b)
 
-def mulmod(pyint a, pyint b, pyint mod):
+cpdef pyint mulmod(pyint a, pyint b, pyint mod):
     '''
     Return (a * b) % mod, even works for very large numbers
     '''
@@ -168,7 +87,7 @@ def mulmod(pyint a, pyint b, pyint mod):
         b >>= 1
     return result
 
-def powmod(pyint a, pyint exp, pyint mod):
+cpdef pyint powmod(pyint a, pyint exp, pyint mod):
     '''
     Return (a ^ exp) % mod, even works for very large numbers
     
@@ -187,9 +106,105 @@ def powmod(pyint a, pyint exp, pyint mod):
         exp >>= 1
     return result
     '''
-    return pow(a, exp, mod)
+    return pow(a, exp, mod) # Python has built-in implementation
 
-def isprime(pyint target, int confidence=5):
+# ----- Prime utilities -----
+
+# global cache
+cdef list prime_list = [2] # Add more primes here to fasten sieve
+cdef pyint prime_current = 3
+cdef pyint WARN_SIZE = 2**25
+
+cpdef list primes(pyint limit, loop_predicate=None):
+    '''
+    Returns all primes under limit. The primes are sorted.
+
+    # Params (for optimization)
+    loop_predicate: A function to judge whether the loop will be stopped immediately.
+        If loop_predicate(prime) is False, then the loop ends.
+    
+    # Reference
+    https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n/3035188#3035188
+    '''
+    global prime_current
+    cdef:
+        # Only sieve numbers from current prime to limit
+        set sieve = set(range(prime_current | 1, limit, 2))
+        pyint multi
+
+    if limit > WARN_SIZE:
+        warn("list primes works very slow for limit larger than 2^25 and won't work if limit > 2^30")
+
+    if limit <= prime_current:
+        warn("prevent to return primes with limit less than current prime, because list slicing is relatively expensive")
+        return prime_list[:bisect_left(prime_list, limit)]
+
+    # Linear Sieve (with 2 pre-filtered)
+    # sieve with existing primes
+    for prime in prime_list[1:]: # skip 2
+        multi = prime * prime
+        if multi < prime_current:
+            multi = prime * ((prime_current // prime) | 1)
+        while multi < limit:
+            if multi in sieve:
+                sieve.remove(multi)
+            multi += 2 * prime
+
+    # sieve with new primes
+    for prime in range(prime_current | 1, sqrt(limit) + 1, 2):
+        if prime not in sieve:
+            continue
+        multi = prime * prime
+        while multi < limit:
+            if multi in sieve:
+                sieve.remove(multi)
+            multi += 2 * prime
+        if loop_predicate and not loop_predicate(prime):
+            break
+
+    prime_list.extend(sorted(sieve))
+    prime_current = limit
+    
+    # loop the rest of the primes
+    # TODO: What's this for?
+    if loop_predicate:
+        loop_start = sqrt(limit) + 1
+        for prime in prime_list:
+            if prime < loop_start:
+                continue
+            if not loop_predicate(prime):
+                break
+
+    return prime_list
+
+cpdef list nprimes(pyint count, loop_predicate=None):
+    '''
+    Returns primes of certain amount counting from 2. The primes are sorted.
+    '''
+    while len(prime_list) < count:
+        primes(prime_current * count // len(prime_list), loop_predicate)
+    return prime_list
+
+def iterprimes():
+    '''
+    Returns an endless iterator of primes.
+    '''
+    cdef pyint current = 0
+    while True:
+        if current >= len(prime_list):
+            primes(prime_current << 1)
+        yield prime_list[current]
+        current += 1
+
+cpdef clearprimes():
+    '''
+    Clear primes to prevent performance influence of factorization
+    '''
+    global prime_current
+    prime_list = [2]
+    prime_current = 3
+
+cpdef bint isprime(pyint target, int confidence=5):
     '''
     Return whether target is a prime, even works for very large numbers and very fast
 
@@ -277,7 +292,7 @@ def divisor(pyint target):
                 j <<= 1
     return p
 
-def factors(pyint target, int threshold=100):
+cpdef dict factors(pyint target, int threshold=100):
     '''
     Return the prime factors of target. (Use built-in)
 
