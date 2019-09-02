@@ -95,4 +95,6 @@ target/
 *.app
 
 ########## Cython ##########
-ProjectEuler/em\.c
+ProjectEuler/em.c
+ProjectEuler/em.cpp
+ProjectEuler/em.html

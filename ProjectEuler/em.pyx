@@ -1,3 +1,6 @@
+# distutils: language = c++
+# cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
+
 '''
 Math library for Project Euler (em: Euler Math)
 Copyright (C) 2018- Jacob Zhong
@@ -5,16 +8,30 @@ Copyright (C) 2018- Jacob Zhong
 Compile: cythonize -i em.pyx
 TODO:
     Add decorator for easy storage
-    Parallel prime sieve
+    Parallel prime sieve and factorization
 '''
 
-from warnings import warn
-from cpython cimport int as pyint
-from random import randrange
-from bisect import bisect_left
+DEF LARGE_INT_SUPPORT = False
 
-# ----- Fase Unary Functions -----
-cpdef int lb(pyint target):
+cimport cython
+from cython.operator cimport dereference as deref, preincrement as inc
+from libc.stdlib cimport rand, RAND_MAX
+from libcpp.vector cimport vector as clist
+from libcpp.map cimport map as cmap
+from libcpp.set cimport set as cset
+from cpython cimport int as pyint
+
+from warnings import warn
+
+ctypedef unsigned long long ulong
+IF LARGE_INT_SUPPORT:
+    # XXX: Currently PyInt is considered as long in template params
+    ctypedef pyint clong
+ELSE:
+    ctypedef ulong clong
+
+# ----- Numeric Functions -----
+cpdef int lb(clong target):
     '''
     Returns floor(log(2, target))
     If target is 0, then -1 is returned
@@ -25,7 +42,7 @@ cpdef int lb(pyint target):
         counter += 1
     return counter
 
-cpdef int log(pyint target, pyint base):
+cpdef int log(clong target, clong base):
     '''
     Returns floor(log(base, target))
     If target is 0, then -1 is returned
@@ -36,7 +53,7 @@ cpdef int log(pyint target, pyint base):
         counter += 1
     return counter
 
-cpdef pyint sqrt(pyint target):
+cpdef clong sqrt(clong target):
     '''
     Returns floor(sqrt(target))
 
@@ -45,9 +62,9 @@ cpdef pyint sqrt(pyint target):
     '''
     cdef:
         unsigned int hbit = lb(target) >> 1
-        pyint test
-        pyint hnum = 1 << hbit
-        pyint result = 0
+        clong test
+        clong hnum = 1 << hbit
+        clong result = 0
     
     while True:
         test = ((result << 1) + hnum) << hbit
@@ -60,7 +77,7 @@ cpdef pyint sqrt(pyint target):
         hnum >>= 1
     return result
 
-cpdef pyint gcd(pyint a, pyint b):
+cpdef clong gcd(clong a, clong b):
     '''
     Returns gcd(a, b)
     '''
@@ -70,11 +87,11 @@ cpdef pyint gcd(pyint a, pyint b):
         return b
     return gcd(b, a % b)
 
-cpdef pyint mulmod(pyint a, pyint b, pyint mod):
+cpdef clong mulmod(clong a, clong b, clong mod):
     '''
     Return (a * b) % mod, even works for very large numbers
     '''
-    cdef pyint result = 0;
+    cdef clong result = 0;
     a %= mod
     b %= mod
     while b > 0:
@@ -87,41 +104,65 @@ cpdef pyint mulmod(pyint a, pyint b, pyint mod):
         b >>= 1
     return result
 
-cpdef pyint powmod(pyint a, pyint exp, pyint mod):
+cpdef clong powmod(clong a, clong exp, clong mod):
     '''
     Return (a ^ exp) % mod, even works for very large numbers
     
-    Implementation
-    --------------
+    Note: Python also has efficient built-in implementation: pow(a, exp, mod)
+    '''
     cdef:
-        pyint multi = a
-        pyint result = 1
+        clong multi = a
+        clong result = 1
     if exp == 1:
         return a % mod
-    a %= mod;
+
+    multi %= mod
     while exp > 0:
         if exp & 1:
             result = mulmod(result, multi, mod)
         multi = mulmod(multi, multi ,mod)
         exp >>= 1
     return result
+
+cpdef clong randrange(clong a, clong b):
     '''
-    return pow(a, exp, mod) # Python has built-in implementation
+    Fast version if random.randrange()
+    '''
+    cdef clong result = 1, diff = b - a
+    if diff <= 0:
+        raise ValueError("Invalid range for randrange!")
+
+    while diff > RAND_MAX:
+        diff //= RAND_MAX
+        result *= rand()
+
+    result *= (rand() % diff)
+    return result + a
 
 # ----- Prime utilities -----
 
 # global cache
-cdef list prime_list = [2] # Add more primes here to fasten sieve
-cdef pyint prime_current = 3
-cdef pyint WARN_SIZE = 2**25
+cdef clist[ulong] prime_list = [2] # Add more primes here to fasten sieve
+cdef clong prime_current = 3
+cdef clong WARN_SIZE = 2**25
 
-cpdef list primes(pyint limit, loop_predicate=None):
+cpdef int fprime(clong x, int lo=0, int hi=0):
+    """
+    C version of bisect.bisect_left(prime_list, x, lo, hi)
+    """
+    cdef int mid
+    if hi == 0:
+        hi = prime_list.size()
+
+    while lo < hi:
+        mid = (lo + hi) >> 1
+        if prime_list[mid] < x: lo = mid+1
+        else: hi = mid
+    return lo
+
+cpdef list primes(clong limit):
     '''
-    Returns all primes under limit. The primes are sorted.
-
-    # Params (for optimization)
-    loop_predicate: A function to judge whether the loop will be stopped immediately.
-        If loop_predicate(prime) is False, then the loop ends.
+    Returns all primes **under** limit. The primes are sorted.
     
     # Reference
     https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n/3035188#3035188
@@ -129,69 +170,61 @@ cpdef list primes(pyint limit, loop_predicate=None):
     global prime_current
     cdef:
         # Only sieve numbers from current prime to limit
-        set sieve = set(range(prime_current | 1, limit, 2))
-        pyint multi
+        cset[ulong] sieve = range(prime_current | 1, limit, 2)
+        clong multi, prime
 
     if limit > WARN_SIZE:
         warn("list primes works very slow for limit larger than 2^25 and won't work if limit > 2^30")
 
     if limit <= prime_current:
-        warn("prevent to return primes with limit less than current prime, because list slicing is relatively expensive")
-        return prime_list[:bisect_left(prime_list, limit)]
+        return prime_list[:fprime(limit)]
 
     # Linear Sieve (with 2 pre-filtered)
     # sieve with existing primes
-    for prime in prime_list[1:]: # skip 2
+    piter = prime_list.begin()
+    inc(piter) # skip 2
+    while piter != prime_list.end():
+        prime = deref(piter)
         multi = prime * prime
         if multi < prime_current:
             multi = prime * ((prime_current // prime) | 1)
         while multi < limit:
-            if multi in sieve:
-                sieve.remove(multi)
+            if sieve.find(multi) != sieve.end():
+                sieve.erase(<ulong> multi)
             multi += 2 * prime
+        inc(piter)
 
     # sieve with new primes
     for prime in range(prime_current | 1, sqrt(limit) + 1, 2):
-        if prime not in sieve:
+        if sieve.find(prime) == sieve.end():
             continue
         multi = prime * prime
         while multi < limit:
-            if multi in sieve:
-                sieve.remove(multi)
+            if sieve.find(multi) != sieve.end():
+                sieve.erase(<ulong> multi)
             multi += 2 * prime
-        if loop_predicate and not loop_predicate(prime):
-            break
 
-    prime_list.extend(sorted(sieve))
+    for prime in sieve:
+        prime_list.push_back(prime)
     prime_current = limit
-    
-    # loop the rest of the primes
-    # TODO: What's this for?
-    if loop_predicate:
-        loop_start = sqrt(limit) + 1
-        for prime in prime_list:
-            if prime < loop_start:
-                continue
-            if not loop_predicate(prime):
-                break
 
     return prime_list
 
-cpdef list nprimes(pyint count, loop_predicate=None):
+cpdef list nprimes(clong count):
     '''
     Returns primes of certain amount counting from 2. The primes are sorted.
     '''
-    while len(prime_list) < count:
-        primes(prime_current * count // len(prime_list), loop_predicate)
+    while prime_list.size() < count:
+        primes(prime_current * count // prime_list.size())
     return prime_list
 
 def iterprimes():
     '''
     Returns an endless iterator of primes.
     '''
-    cdef pyint current = 0
+    cdef clong current = 0
     while True:
-        if current >= len(prime_list):
+        if current >= prime_list.size():
             primes(prime_current << 1)
         yield prime_list[current]
         current += 1
@@ -204,7 +237,7 @@ cpdef clearprimes():
     prime_list = [2]
     prime_current = 3
 
-cpdef bint isprime(pyint target, int confidence=5):
+cpdef bint isprime(clong target, int confidence=5):
     '''
     Return whether target is a prime, even works for very large numbers and very fast
 
@@ -217,15 +250,15 @@ cpdef bint isprime(pyint target, int confidence=5):
     '''
     cdef:
         int shift = 0
-        pyint x, pre
-        pyint u = target - 1
+        clong x, pre
+        clong u = target - 1
         int idx
     if target <= 1:
         return False
     
     # find in list
-    idx = bisect_left(prime_list, target)
-    if idx != len(prime_list) and prime_list[idx] == target:
+    idx = fprime(target)
+    if idx != prime_list.size() and prime_list[idx] == target:
         return True
 
     while(not u & 1):
@@ -249,7 +282,7 @@ cpdef bint isprime(pyint target, int confidence=5):
             return False
     return True
 
-def divisor(pyint target):
+cpdef clong divisor(clong target):
     '''
     Return a proper divisor of target (randomly), even works for very large numbers
 
@@ -261,19 +294,24 @@ def divisor(pyint target):
         raise ValueError('Cannot find a proper divisor of a prime')
 
     cdef:
-        pyint p = target
-        pyint t, a, b, i, j, d
+        clong t, a, b, i, j, d
+        clong prime
 
     if lb(target) < 10: # regress to naive method
         t = sqrt(target)
-        for prime in primes(t):
+        primes(t)
+        piter = prime_list.begin()
+        while piter != prime_list.end():
+            prime = deref(piter)
             if prime > t:
                 raise ValueError('Cannot find a proper divisor of a prime')
             if target % prime == 0:
                 return prime
+            inc(piter)
 
     # Otherwise use Rho algorithm
-    while p >= target:
+    prime = target
+    while prime >= target:
         a = b = randrange(1, target)
         t = randrange(1, target)
         i, j = 1, 2
@@ -281,62 +319,73 @@ def divisor(pyint target):
             i += 1
             a = (mulmod(a, a, target) + t) % target
             if a == b:
-                p = target
+                prime = target
                 break
             d = gcd(abs(b - a), target)
             if 1 < d or d < a:
-                p = d
+                prime = d
                 break
             if i == j:
                 b = a
                 j <<= 1
-    return p
+    return prime
 
-cpdef dict factors(pyint target, int threshold=100):
+cpdef dict factors(clong target, int threshold=int(1e6)):
     '''
-    Return the prime factors of target. (Use built-in)
+    Return the prime factors of target.
 
     Parameters
     ----------
     threshold: The algorithm will regress to naive one when under the threshold (exponential).
     '''
-    cdef pyint p = 1
-    cdef dict f1, f2
+    cdef clong prime, plimit, factor
+    cdef cmap[ulong, int] f1, f2
 
     if isprime(target):
         return {target: 1}
     
     if lb(target) < threshold: # regress to naive method
-        f1 = dict() 
-        for prime in primes(sqrt(target) + 1):
+        plimit = sqrt(target) + 1
+        primes(plimit)
+        piter = prime_list.begin()
+        while piter != prime_list.end():
+            prime = deref(piter)
             while target % prime == 0: 
                 target //= prime 
-                if prime not in f1: 
+                if f1.find(prime) == f1.end(): 
                     f1[prime] = 0 
                 f1[prime] += 1
             if target == 1:
                 break
+            inc(piter)
+
         if target != 1:
             f1[target] = 1
         return f1 
 
-    while p == 1:
+    prime = 1
+    while prime == 1:
         try:
             # If here is an error occurred, that is isprime() failed to judge a prime
-            p = divisor(target)
+            prime = divisor(target)
         finally:
             continue
     
-    f1 = factors(p, threshold)
-    f2 = factors(target // p, threshold)
-    for factor in f1:
-        if factor in f2:
-            f2[factor] += f1[factor]
+    f1 = factors(prime, threshold)
+    f2 = factors(target // prime, threshold)
+    fiter = f1.begin() # fiter.first: factor, fiter.second: factor count
+    while fiter != f1.end():
+        factor = deref(fiter).first
+        if f2.find(factor) != f2.end():
+            f2[factor] += deref(fiter).second
         else:
-            f2[factor] = f1[factor]
+            f2[factor] = deref(fiter).second
+        inc(fiter)
     return f2
 
-def iterpolygonal(pyint s):
+# ----- Miscellaneous -----
+
+def iterpolygonal(clong s):
     '''
     Returns an endless iterator of polygonal numbers
 
@@ -356,8 +405,8 @@ def iterpolygonal(pyint s):
     https://en.wikipedia.org/wiki/Polygonal_number
     '''
     s -= 2
-    cdef pyint n = 0
-    cdef pyint result = 0
+    cdef clong n = 0
+    cdef clong result = 0
     while True:
         result += n * s + 1
         n += 1

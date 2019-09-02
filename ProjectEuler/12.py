@@ -1,10 +1,11 @@
 FMIN = 500
 
+from em import factors
+
 def solve(fmin = FMIN):
     '''
     Note: Alternative solution: Pollard's rho algorithm
     '''
-    from em import factors
 
     target = 7 # Start from the index given in the problem
     while True:

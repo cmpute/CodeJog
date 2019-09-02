@@ -9,7 +9,6 @@ def solve(limit = LIMIT):
             sumnum = sum(int(d) for d in str(at))
             if sumnum > maxnum:
                 maxnum = sumnum
-                print(a, _)
     return maxnum
 
 if __name__ == "__main__":
