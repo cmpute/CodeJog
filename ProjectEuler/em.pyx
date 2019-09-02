@@ -6,9 +6,6 @@ Math library for Project Euler (em: Euler Math)
 Copyright (C) 2018- Jacob Zhong
 
 Compile: cythonize -i em.pyx
-TODO:
-    Add decorator for easy storage
-    Parallel prime sieve and factorization
 '''
 
 DEF LARGE_INT_SUPPORT = False
@@ -20,8 +17,6 @@ from libcpp.vector cimport vector as clist
 from libcpp.map cimport map as cmap
 from libcpp.set cimport set as cset
 from cpython cimport int as pyint
-
-from warnings import warn
 
 ctypedef unsigned long long ulong
 IF LARGE_INT_SUPPORT:
@@ -160,26 +155,30 @@ cpdef int fprime(clong x, int lo=0, int hi=0):
         else: hi = mid
     return lo
 
-cpdef list primes(clong limit):
+cpdef list primes(clong limit, bint suppress=False):
     '''
-    Returns all primes **under** limit. The primes are sorted.
+    Returns all primes **under** limit. The primes are sorted. The `report` switch is used for
+        C optimization since the list conversion is expensive
     
     # Reference
     https://stackoverflow.com/questions/2068372/fastest-way-to-list-all-primes-below-n/3035188#3035188
+
+    # Note
+    List primes works very slow for limit larger than 2^25 and won't work if limit > 2^30
     '''
     global prime_current
     cdef:
         # Only sieve numbers from current prime to limit
-        cset[ulong] sieve = range(prime_current | 1, limit, 2)
+        cset[ulong] sieve
         clong multi, prime
 
-    if limit > WARN_SIZE:
-        warn("list primes works very slow for limit larger than 2^25 and won't work if limit > 2^30")
-
-    if limit <= prime_current:
+    if limit <= prime_current and not suppress:
         return prime_list[:fprime(limit)]
 
-    # Linear Sieve (with 2 pre-filtered)
+    # Initialize linear Sieve (with 2 pre-filtered)
+    for multi in range(prime_current | 1, limit, 2):
+        sieve.insert(sieve.end(), multi) # hopefully O(1)
+
     # sieve with existing primes
     piter = prime_list.begin()
     inc(piter) # skip 2
@@ -208,14 +207,15 @@ cpdef list primes(clong limit):
         prime_list.push_back(prime)
     prime_current = limit
 
-    return prime_list
+    if not suppress:
+        return prime_list
 
 cpdef list nprimes(clong count):
     '''
     Returns primes of certain amount counting from 2. The primes are sorted.
     '''
     while prime_list.size() < count:
-        primes(prime_current * count // prime_list.size())
+        primes(prime_current * count // prime_list.size(), True)
     return prime_list
 
 def iterprimes():
@@ -225,7 +225,7 @@ def iterprimes():
     cdef clong current = 0
     while True:
         if current >= prime_list.size():
-            primes(prime_current << 1)
+            primes(prime_current << 1, True)
         yield prime_list[current]
         current += 1
 
@@ -258,8 +258,8 @@ cpdef bint isprime(clong target, int confidence=5):
     
     # find in list
     idx = fprime(target)
-    if idx != prime_list.size() and prime_list[idx] == target:
-        return True
+    if idx != prime_list.size():
+        return prime_list[idx] == target
 
     while(not u & 1):
         shift += 1
@@ -299,7 +299,7 @@ cpdef clong divisor(clong target):
 
     if lb(target) < 10: # regress to naive method
         t = sqrt(target)
-        primes(t)
+        primes(t, True)
         piter = prime_list.begin()
         while piter != prime_list.end():
             prime = deref(piter)
@@ -334,19 +334,17 @@ cpdef dict factors(clong target, int threshold=int(1e6)):
     '''
     Return the prime factors of target.
 
-    Parameters
-    ----------
+    # Parameters
     threshold: The algorithm will regress to naive one when under the threshold (exponential).
     '''
-    cdef clong prime, plimit, factor
+    cdef clong prime, factor
     cdef cmap[ulong, int] f1, f2
 
     if isprime(target):
         return {target: 1}
     
     if lb(target) < threshold: # regress to naive method
-        plimit = sqrt(target) + 1
-        primes(plimit)
+        primes(sqrt(target) + 1, True)
         piter = prime_list.begin()
         while piter != prime_list.end():
             prime = deref(piter)
@@ -384,6 +382,22 @@ cpdef dict factors(clong target, int threshold=int(1e6)):
     return f2
 
 # ----- Miscellaneous -----
+
+cdef class memoize(object):
+    cdef object func
+    cdef dict cache
+
+    def __init__(self, func):
+        self.func = func
+        self.cache = {}
+    
+    def __call__(self, *args):
+        if args in self.cache:
+            return self.cache[args]
+        else:
+            val = self.func(*args)
+            self.cache[args] = val
+            return val
 
 def iterpolygonal(clong s):
     '''

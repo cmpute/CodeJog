@@ -1,12 +1,8 @@
 FMIN = 500
 
-from em import factors
+from em import factors, primes
 
 def solve(fmin = FMIN):
-    '''
-    Note: Alternative solution: Pollard's rho algorithm
-    '''
-
     target = 7 # Start from the index given in the problem
     while True:
         f1 = factors(target)

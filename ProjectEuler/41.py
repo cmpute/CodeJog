@@ -1,9 +1,10 @@
+from itertools import permutations
+from em import isprime
+
 def solve():
     '''
     Brute-force solution
     '''
-    from itertools import permutations
-    from em import isprime
 
     digits = [str(d) for d in range(1, 10)]
     for size in reversed(range(10)):
