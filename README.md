@@ -1,2 +1,2 @@
 # CodeJog
-My playground for programming challenges
+My playground for coding challenges

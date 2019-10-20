@@ -177,7 +177,7 @@ cpdef list primes(clong limit, bint suppress=False):
 
     # Initialize linear Sieve (with 2 pre-filtered)
     for multi in range(prime_current | 1, limit, 2):
-        sieve.insert(sieve.end(), multi) # hopefully O(1)
+        sieve.insert(sieve.end(), <unsigned long long>multi) # hopefully O(1)
 
     # sieve with existing primes
     piter = prime_list.begin()
