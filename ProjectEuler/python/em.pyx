@@ -26,6 +26,9 @@ ELSE:
     ctypedef ulong clong
 
 # ----- Numeric Functions -----
+# Note: if the target is not too large,
+#       convert to float and do the math is much faster in C
+
 cpdef int lb(clong target):
     '''
     Returns floor(log(2, target))

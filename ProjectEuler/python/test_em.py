@@ -24,18 +24,20 @@ def test():
     assert min(a, b) <= t and t < max(a, b), "randrange() assert failed!"
     print("numeric passed!")
 
+    assert em.isprime(primet)
     assert all(prime50[i] == em.primes(50)[i] for i in range(len(prime50)))
     assert all(prime100[i] == em.primes(100)[i] for i in range(len(prime100)))
     em.clearprimes()
     assert all(prime100[i] == em.nprimes(len(prime100))[i] for i in range(len(prime100)))
     plist = list(islice(em.iterprimes(), len(prime100)))
     assert all(prime100[i] == plist[i] for i in range(len(prime100)))
+    assert em.isprime(primet)
     em.clearprimes()
     assert em.factors(123456789) == fac123456789
     print("prime passed!")
 
 def benchmark():
-    print("----- Numeric functions: ----- ")
+    print("----- Numeric functions: -----")
     print("em.lb: %.4fs (vs Python %.4fs)" % (
         timeit.timeit('em.lb(a)', setup='from random import randint; import em; a = randint(1e5, 1e6)'),
         timeit.timeit('int(math.log(a, 2))', setup='from random import randint; import math; a = randint(1e5, 1e6)')
