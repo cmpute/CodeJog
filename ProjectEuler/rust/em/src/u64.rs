@@ -18,7 +18,7 @@ pub fn log(target: u64, base: u64) -> u8 {
 /// Returns floor(sqrt(target))
 #[inline]
 pub fn sqrt(target: u64) -> u64 {
-    if target < 10000000000 {
+    if target < (1 << 15) {
         (target as f32).sqrt() as u64
     }
     else {
@@ -75,7 +75,7 @@ pub fn randrange(a: u64, b: u64) -> u64 {
 }
 
 // ----- Prime utilities -----
-// TODO: improve based on `primal` and `primes` crates
+// TODO: improve based on `primal`, `primes` and even `concurrent_prime_sieve` crates
 pub struct PrimeBuffer {
     list: Vec<u64>,
     current: u64
@@ -154,13 +154,13 @@ impl PrimeBuffer {
             return result;
         }
 
-        self.factors_naive(target)
-        // if lb(target) < 1000000 {
-        //     self.factors_naive(target)
-        // }
-        // else {
-        //     self.factors_divide(target)
-        // }
+        const FACTOR_THRESHOLD: u64 = 1 << 10;
+        if target < FACTOR_THRESHOLD {
+            self.factors_naive(target)
+        }
+        else {
+            self.factors_divide(target)
+        }
     }
 
     fn factors_naive(&mut self, target: u64) -> HashMap<u64, u64> {
@@ -183,9 +183,80 @@ impl PrimeBuffer {
         result
     }
 
-    // fn factors_divide(&mut self, target: u64) -> HashMap<u64, u64> {
-        
-    // }
+    /// Find the factors by dividing the target by a proper divider recursively
+    fn factors_divide(&mut self, target: u64) -> HashMap<u64, u64> {
+        // find a proper divisor
+        let p = loop {
+            if let Ok(d) = self.divisor(target) {
+                break d;
+            }
+        };
+
+        let mut f1 = self.factors(p);
+        let f2 = self.factors(target / p);
+        for (factor, exponent) in &f2 {
+            *f1.entry(*factor).or_insert(0) += exponent;
+        }
+        f1
+    }
+
+    /// Return a proper divisor of target (randomly), even works for very large numbers
+    fn divisor(&mut self, target: u64) -> Result<u64, ()> {
+        if self.isprime(target, None) {
+            return Err(())
+        }
+
+        const DIVISOR_THRESHOLD: u64 = 1 << 40;
+        if target < DIVISOR_THRESHOLD {
+            self.divisor_naive(target)
+        }
+        else {
+            self.divisor_rho(target)
+        }
+    }
+
+    fn divisor_naive(&mut self, target: u64) -> Result<u64, ()> {
+        for p in self.primes(sqrt(target)) {
+            if target % p == 0 {
+                return Ok(*p);
+            }
+        }
+        Err(())
+    }
+
+    /// Pollard's rho algorithm
+    /// http://blog.csdn.net/z690933166/article/details/9865755
+    fn divisor_rho(&self, target: u64) -> Result<u64, ()> {
+        let mut p = target;
+        while p >= target {
+            let mut a = randrange(1, target);
+            let mut b = a;
+            let t = randrange(1, target);
+            let mut i = 1; let mut j = 1;
+            p = loop {
+                i += 1;
+                a = (mulmod(a, a, target) + t) % target;
+                if a == b {
+                    break target;
+                }
+                let diff = if b > a { b - a } else { a - b };
+                let d = gcd(diff, target);
+                if 1 < d || d < a {
+                    break d;
+                }
+                if i == j {
+                    b = a;
+                    j <<= 1;
+                }
+            }
+        }
+
+        if p == 1 || p == target {
+            Err(())
+        } else {
+            Ok(p)
+        }
+    }
 
     /// Returns all primes **below** limit. The primes are sorted.
     /// 
@@ -194,7 +265,7 @@ impl PrimeBuffer {
     /// 
     /// # Note
     /// List primes works very slow for limit larger than 2^25 and won't work if limit > 2^30
-    fn primes(&mut self, limit: u64) -> &[u64] {
+    pub fn primes(&mut self, limit: u64) -> &[u64] {
         if limit < self.current {
             return &self.list[..self.fprime(limit)]
         }
@@ -233,6 +304,22 @@ impl PrimeBuffer {
         self.current = limit;
 
         &self.list[..]
+    }
+
+    /// Returns primes of certain amount counting from 2. The primes are sorted.
+    pub fn nprimes(&mut self, count: usize) -> &[u64] {
+        loop {
+            let _ = self.primes(self.current * (count as u64) / (self.list.len() as u64));
+            if self.list.len() >= count {
+                break &self.list[..count]
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.list.clear();
+        self.list.push(2);
+        self.current = 3;
     }
 }
 
