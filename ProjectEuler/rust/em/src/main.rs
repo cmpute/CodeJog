@@ -5,11 +5,11 @@ fn benchmark() {
     println!("----- Numeric functions: -----");
     print!("em.lb: ");
     timeit!({
-        em::u64::lb(1000000);
+        em::int64::integer::lb(1000000);
     });
     print!("em.log: ");
     timeit!({
-        em::u64::log(100000000, 8);
+        em::int64::integer::log(100000000, 8);
     });
 }
 

@@ -1,7 +1,7 @@
 from em import gcd
 import math
 
-LIMIT = 10001
+LIMIT = 10000
 
 def inverse(root, coeffs):
     '''
@@ -34,8 +34,7 @@ def inverse(root, coeffs):
 
 def solve(limit=LIMIT):
     counter = 0
-    for i in range(2, limit):
-        print(i)
+    for i in range(2, limit+1):
         sq = math.sqrt(i)
         a0 = int(sq)
         if a0 ** 2 == i: # skip square numbers

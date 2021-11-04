@@ -1,4 +1,4 @@
-use em::u64::gcd;
+use em::int64::integer::gcd;
 
 const LIMIT: u64 = 20;
 

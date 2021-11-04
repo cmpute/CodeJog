@@ -1,4 +1,4 @@
-use em::u64::PrimeBuffer;
+use em::int64::prime::PrimeBuffer;
 
 const TARGET: u64 = 10001;
 

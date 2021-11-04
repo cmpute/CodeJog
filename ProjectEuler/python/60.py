@@ -1,10 +1,11 @@
-from em import iterprimes, primes, isprime, memoize
+from em import iterprimes, primes, isprime
+from functools import lru_cache
 
 # primes that fulfill the property is far more less, so store true values
 cache = {2: list(), 3: list(), 4: list()}
 primes(1e6, True)
 
-@memoize
+@lru_cache(maxsize=None)
 def test2(a, b):
     return isprime(int(str(a) + str(b))) and isprime(int(str(b) + str(a)))
 

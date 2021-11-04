@@ -1,2 +1,2 @@
-pub mod u64;
+pub mod int64;
 pub mod bigint;
