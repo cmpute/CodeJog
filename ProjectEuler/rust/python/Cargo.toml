@@ -1,0 +1,16 @@
+[package]
+name = "empy"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "em"
+crate-type = ["cdylib"]
+
+[dependencies.em]
+path = "../em"
+
+[dependencies.pyo3]
+version = "0.15.0"
+features = ["extension-module"]

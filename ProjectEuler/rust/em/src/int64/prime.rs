@@ -35,7 +35,7 @@ impl PrimeBuffer {
     /// # Reference
     /// Miller–Rabin primality test
     /// http://www.cnblogs.com/vongang/archive/2012/03/15/2398626.html
-    pub fn isprime(&self, target: u64, confidence: Option<i8>) -> bool {
+    pub fn is_prime(&self, target: u64, confidence: Option<i8>) -> bool {
         let confidence = confidence.unwrap_or(5);
         assert!(target > 1);
 
@@ -130,7 +130,7 @@ impl PrimeBuffer {
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
     fn divisor(&mut self, target: u64) -> Result<u64, ()> {
-        if self.isprime(target, None) {
+        if self.is_prime(target, None) {
             return Err(())
         }
 
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn prime_test(){
         let mut pb = PrimeBuffer::new();
-        assert!(pb.isprime(6469693333, None));
+        assert!(pb.is_prime(6469693333, None));
         let prime50 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
         let prime100 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
         assert_eq!(pb.primes(50), prime50);

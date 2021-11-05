@@ -384,23 +384,82 @@ cpdef dict factors(clong target, int threshold=int(1e6)):
         inc(fiter)
     return f2
 
-# ----- Miscellaneous -----
+# ----- Continuous Fraction -----
+class QuadraticSurd:
+    '''
+    represent a number with format (a*sqrt(r) + b) / c
+    coeffs = (a, b, c)
+    r should not be a perfect square
+    '''
+    def __init__(self, r, coeffs):
+        a, b, c = coeffs
+        if c < 0:
+            a, b, c = -a, -b, -c
 
-cdef class memoize(object):
-    cdef object func
-    cdef dict cache
+        def gcd0(x, y):
+            if x == 0:
+                return y
+            if y == 0:
+                return x
+            return gcd(x, y)
 
-    def __init__(self, func):
-        self.func = func
-        self.cache = {}
+        g = gcd0(gcd0(abs(a), abs(b)), c)
+        a //= g
+        b //= g
+        c //= g
+
+        self.coeffs = a, b, c
+        self.r = r
+
+    @classmethod
+    def sqrt(cls, r):
+        return QuadraticSurd(r, (1, 0, 1))
+
+    def inverse(self):
+        a, b, c = self.coeffs
+        na = c*a
+        nb = -c*b
+        nc = a**2 * self.r - b**2
+        return QuadraticSurd(self.r, (na, nb, nc))
+
+    def floor(self):
+        a, b, c = self.coeffs
+        ar = sqrt(a * a * self.r)
+        if a < 0:
+            ar = -(ar + 1)
+        nom = ar + b
+        if nom < 0:
+            nom -= c - 1
+        return nom // c
+
+    def value(self):
+        import math
+        a, b, c = self.coeffs
+        return (math.sqrt(self.r) * a + b) / c
+
+    def __str__(self):
+        a, b, c = self.coeffs
+        return "(%d√%d + %d)/%d" % (a, self.r, b, c)
+
+    def __eq__(self, other):
+        return self.coeffs == other.coeffs and self.r == other.r
     
-    def __call__(self, *args):
-        if args in self.cache:
-            return self.cache[args]
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(self.coeffs + (self.r,))
+
+    def __sub__(self, other):
+        a, b, c = self.coeffs
+        if isinstance(other, int):
+            return QuadraticSurd(self.r,
+                (a, b - other * c, c)
+            )
         else:
-            val = self.func(*args)
-            self.cache[args] = val
-            return val
+            raise NotImplementedError()
+
+# ----- Miscellaneous -----
 
 def iterpolygonal(clong s):
     '''

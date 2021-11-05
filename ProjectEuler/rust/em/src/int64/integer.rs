@@ -4,7 +4,7 @@
 #[inline]
 pub fn lb(target: u64) -> u8 {
     assert_ne!(target, 0);
-    (target as f32).log2() as u8 // hardware acceled
+    (target as f32).log2() as u8
 }
 
 /// Returns floor(log(base, target))
@@ -25,6 +25,13 @@ pub fn sqrt(target: u64) -> u64 {
     }
 }
 
+// Check whether input is a square number
+#[inline]
+pub fn is_sq(target: u64) -> bool {
+    let s = sqrt(target);
+    s * s == target
+}
+
 #[inline]
 /// Returns greatest common divisor between a, b
 pub fn gcd(a: u64, b: u64) -> u64 {
@@ -33,21 +40,26 @@ pub fn gcd(a: u64, b: u64) -> u64 {
 
 /// Return (a * b) % mod, even works for very large numbers
 pub fn mulmod(a: u64, b: u64, m: u64) -> u64 {
-    let mut result: u64 = 0;
-    let mut a = a % m;
-    let mut b = b % m;
-    while b > 0 {
-        if b & 1 > 0 {
-            result += a;
-            result %= m;
+    match a.checked_mul(b) {
+        Some(ab) => ab % m,
+        None => {
+            let mut result: u64 = 0;
+            let mut a = a % m;
+            let mut b = b % m;
+            while b > 0 {
+                if b & 1 > 0 {
+                    result += a;
+                    result %= m;
+                }
+                a <<= 1;
+                if a >= m {
+                    a %= m;
+                }
+                b >>= 1;
+            }
+            result
         }
-        a <<= 1;
-        if a >= m {
-            a %= m;
-        }
-        b >>= 1;
     }
-    result
 }
 
 /// Return (a ^ exp) % mod, even works for very large numbers
