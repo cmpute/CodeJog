@@ -26,6 +26,7 @@ version = "0.1.0"
 dependencies = [
  "num-bigint",
  "num-integer",
+ "num-traits",
  "rand",
  "timeit",
 ]
@@ -35,6 +36,7 @@ name = "empy"
 version = "0.1.0"
 dependencies = [
  "em",
+ "num-bigint",
  "pyo3",
 ]
 
@@ -206,6 +208,7 @@ dependencies = [
  "cfg-if",
  "indoc",
  "libc",
+ "num-bigint",
  "parking_lot",
  "paste",
  "pyo3-build-config",

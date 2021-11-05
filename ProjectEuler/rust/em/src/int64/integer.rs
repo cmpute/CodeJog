@@ -1,10 +1,10 @@
-// u64 version of the math utilities
-
 /// Returns floor(log(2, target))
 #[inline]
 pub fn lb(target: u64) -> u8 {
     assert_ne!(target, 0);
     (target as f32).log2() as u8
+    // TODO: convert target to f32 may lose precision
+    // TODO: or 64 - x.leading_zeros()?
 }
 
 /// Returns floor(log(base, target))
@@ -68,6 +68,12 @@ pub fn powmod(a: u64, exp: u64, m: u64) -> u64 {
         return a % m;
     }
 
+    if exp < (u32::MAX as u64) {
+        if let Some(ae) = a.checked_pow(exp as u32) {
+            return ae % m;
+        }
+    }
+    
     let mut multi = a % m;
     let mut exp = exp;
     let mut result = 1;

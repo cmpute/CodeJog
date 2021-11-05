@@ -76,7 +76,7 @@ impl PrimeBuffer {
     }
 
     pub fn factors(&mut self, target: u64) -> HashMap<u64, u64> {
-        if self.isprime(target, None) {
+        if self.is_prime(target, None) {
             let mut result = HashMap::new();
             result.insert(target, 1);
             return result;

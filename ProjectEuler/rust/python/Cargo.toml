@@ -8,9 +8,12 @@ edition = "2018"
 name = "em"
 crate-type = ["cdylib"]
 
+[dependencies]
+num-bigint = "0.4.3"
+
 [dependencies.em]
 path = "../em"
 
 [dependencies.pyo3]
 version = "0.15.0"
-features = ["extension-module"]
+features = ["extension-module", "num-bigint"]
