@@ -43,22 +43,26 @@ pub fn mulmod(a: u64, b: u64, m: u64) -> u64 {
     match a.checked_mul(b) {
         Some(ab) => ab % m,
         None => {
-            let mut result: u64 = 0;
             let mut a = a % m;
             let mut b = b % m;
-            while b > 0 {
-                if b & 1 > 0 {
-                    result += a;
-                    result %= m;
+            match a.checked_mul(b) {
+                Some(ab) => ab % m,
+                None => {
+                    let mut result: u64 = 0;
+                    while b > 0 {
+                        if b & 1 > 0 {
+                            result += a;
+                            result %= m;
+                        }
+                        a <<= 1;
+                        if a >= m {
+                            a %= m;
+                        }
+                        b >>= 1;
+                    }
+                    result
                 }
-                a <<= 1;
-                if a >= m {
-                    a %= m;
-                }
-                b >>= 1;
-            }
-            result
-        }
+        }}
     }
 }
 
