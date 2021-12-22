@@ -2,9 +2,11 @@ use num_traits::{FromPrimitive, Zero, One};
 use num_integer::{Integer, sqrt};
 use num_bigint::BigInt;
 use std::ops::Neg;
+use std::fmt;
 use crate::int64::integer::sqrt as sqrt64;
 
 /// A type representation quadratic surd number (a + b*sqrt(r)) / c
+#[derive(PartialEq, Eq, Hash)]
 pub struct QuadraticSurd<T> {
     a: T, b: T, c: T, r: T
 }
@@ -13,7 +15,7 @@ impl<T> QuadraticSurd<T>
 where T: Integer + Neg<Output = T> + FromPrimitive + Clone
 {
     pub fn new(a: T, b: T, c: T, r: T) -> Self {
-        assert!(r > Zero::zero());
+        assert!(r > Zero::zero()); // TODO: it's possible to support r < 0, but we need complex number
 
         let (a, b, c) = if c >= Zero::zero() {
             (a, b, c)
@@ -45,6 +47,14 @@ where T: Integer + Neg<Output = T> + FromPrimitive + Clone
             self.b.clone() * self.b * self.r.clone() - self.a.clone() * self.a,
             self.r
         )
+    }
+}
+
+impl<T> fmt::Display for QuadraticSurd<T> 
+where T: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} + {}√{}) / {}", self.a, self.b, self.r, self.c)
     }
 }
 

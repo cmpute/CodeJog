@@ -1,10 +1,12 @@
 use pyo3::prelude::*;
 use pyo3::{ffi, AsPyPointer, IntoPy};
-use pyo3::types::{PyLong};
+use pyo3::types::{PyLong, PyType};
 use std::os::raw::c_int;
+use std::string::ToString;
 
 use num_bigint::{BigInt, BigUint};
 use em::int64::{integer as int64, prime as prime64};
+use em::int64::fraction::QuadraticSurd as QuadraticSurdInt64;
 use em::bigint::{integer as intbig};
 
 enum IntTypes {
@@ -27,11 +29,33 @@ fn parse_int(ob: &PyAny) -> PyResult<IntTypes> {
             Ok(IntTypes::Small(v))
         }
     }
-    // then use ToPyObject
+}
+
+#[pyclass]
+struct QuadraticSurd {
+    data: QuadraticSurdInt64
+}
+
+#[pymethods]
+impl QuadraticSurd {
+    #[new]
+    fn __new__(a: i64, b: i64, c: i64, r: i64) -> Self {
+        QuadraticSurd { data: QuadraticSurdInt64::new(a, b, c, r) }
+    }
+
+    fn __str__(&self) -> PyResult<String> {
+        Ok(self.data.to_string())
+    }
+
+    #[classmethod]
+    fn from_sqrt(_cls: &PyType, target: i64) -> PyResult<QuadraticSurd> {
+        Ok(QuadraticSurd { data: QuadraticSurdInt64::from_sqrt(target) })
+    }
 }
 
 fn int64(py: Python) -> PyResult<&PyModule> {
     let m = PyModule::new(py, "int64")?;
+    m.add_class::<QuadraticSurd>()?;
 
     #[pyfunction]
     fn lb(target: u64) -> PyResult<u8> {
@@ -68,7 +92,7 @@ fn em(py: Python, m: &PyModule) -> PyResult<()> {
     fn lb(target: &PyAny) -> PyResult<PyObject> {
         match parse_int(target)? {
             IntTypes::Small(v) => Ok(int64::lb(v as u64).into_py(target.py())),
-            IntTypes::Big(v) => Ok(intbig::lb(v.to_biguint().unwrap()).into_py(target.py()))
+            IntTypes::Big(v) => Ok(intbig::lb(&v.to_biguint().unwrap()).into_py(target.py()))
         }
     }
     m.add_function(wrap_pyfunction!(lb, m)?)?;

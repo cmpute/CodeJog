@@ -3,7 +3,7 @@
 pub mod integer;
 pub mod prime;
 
-mod fraction {
+pub mod fraction {
     use crate::fraction::QuadraticSurd as QuadraticSurdGeneric;
     pub type QuadraticSurd = QuadraticSurdGeneric<i64>;
 }

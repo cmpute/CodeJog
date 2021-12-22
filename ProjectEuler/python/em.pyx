@@ -144,7 +144,7 @@ cdef clist[ulong] prime_list = [2] # Add more primes here to fasten sieve
 cdef clong prime_current = 3
 cdef clong WARN_SIZE = 2**25
 
-cpdef int fprime(clong x, int lo=0, int hi=0):
+cdef int fprime(clong x, int lo=0, int hi=0):
     """
     C version of bisect.bisect_left(prime_list, x, lo, hi)
     """

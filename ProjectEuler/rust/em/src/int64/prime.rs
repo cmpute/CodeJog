@@ -5,78 +5,68 @@ use std::collections::{HashMap, HashSet};
 use super::integer::*;
 
 pub struct PrimeBuffer {
-    list: Vec<u64>,
-    current: u64
+    list: Vec<u64>, // list of found prime numbers
+    current: u64 // all primes smaller than this value has to be in the prime list
 }
 
 impl PrimeBuffer {
     #[inline]
     pub fn new() -> Self {
-        let list = vec![2]; // Add more primes here to fasten sieve
-        PrimeBuffer { list , current: 3 }
+        // store at least enough primes for miller test
+        let list = vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+        PrimeBuffer { list , current: 41 }
     }
 
-    pub fn fprime(&self, target: u64) -> usize {
-        let mut lo: usize = 0;
-        let mut hi: usize = self.list.len();
-
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            if self.list[mid] < target { lo = mid + 1; }
-            else { hi = mid; }
-        }
-        lo
-    }
-
-    /// Return whether target is a prime, even works for very large numbers and very fast
-    /// # Parameter
-    /// confidence: The larger it is, the result is more reliable
-    /// 
-    /// # Reference
-    /// Miller–Rabin primality test
-    /// http://www.cnblogs.com/vongang/archive/2012/03/15/2398626.html
-    pub fn is_prime(&self, target: u64, confidence: Option<i8>) -> bool {
-        let confidence = confidence.unwrap_or(5);
+    /// Return whether target is a prime. It uses Miller test so even works
+    /// for very large numbers and it's very fast
+    pub fn is_prime(&self, target: u64) -> bool {
         assert!(target > 1);
 
-        // first find the prime list
-        let idx = self.fprime(target);
-        if idx != self.list.len() {
-            return self.list[idx] == target;
+        // first find in the prime list
+        if target < self.current {
+            return self.list.binary_search(&target).is_ok();
         }
 
-        let mut u = target - 1;
-        let mut shift = 0;
-        while u & 1 > 0 {
-            shift += 1;
-            u >>= 1;
-        }
+        // find 2^shift*u + 1 = n
+        let tm1 = target - 1;
+        let shift = tm1.trailing_zeros();
+        let u = tm1 >> shift;
 
-        for _ in 0..confidence {
-            let mut x = randrange(2, target);
-            if x % target == 0 {
-                continue;
-            }
-            x = powmod(x, u, target);
-            let mut pre = x;
+        let max_a = match target { // https://oeis.org/A014233
+            0..=2047 => 2,
+            2048..=1373653 => 3,
+            1373654..=25326001 => 5,
+            25326002..=3251031751 => 7,
+            3251031752..=2152302898747 => 11,
+            2152302898748..=3474749660383 => 13,
+            3474749660384..=341550071728321 => 17,
+            341550071728322..=3825123056546413051 => 23,
+            3825123056546413052.. => 37
+        };
+
+        'witnessloop: for a in &self.list {
+            if *a > max_a { break }
+
+            let mut x = powmod(*a, u, target);
+            if x == 1 || x == target - 1 { continue }
 
             for _ in 0..shift {
                 x = mulmod(x, x, target);
-                if x == 1 && pre != 1 && pre != target - 1 {
-                    return false;
+                if x == target - 1 {
+                    continue 'witnessloop
                 }
-                pre = x;
             }
 
             if x != 1 {
-                return false;
+                return false
             }
         }
+
         true
     }
 
     pub fn factors(&mut self, target: u64) -> HashMap<u64, u64> {
-        if self.is_prime(target, None) {
+        if self.is_prime(target) {
             let mut result = HashMap::new();
             result.insert(target, 1);
             return result;
@@ -130,7 +120,7 @@ impl PrimeBuffer {
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
     fn divisor(&mut self, target: u64) -> Result<u64, ()> {
-        if self.is_prime(target, None) {
+        if self.is_prime(target) {
             return Err(())
         }
 
@@ -195,7 +185,10 @@ impl PrimeBuffer {
     /// List primes works very slow for limit larger than 2^25 and won't work if limit > 2^30
     pub fn primes(&mut self, limit: u64) -> &[u64] {
         if limit < self.current {
-            return &self.list[..self.fprime(limit)]
+            let position = match self.list.binary_search(&limit) {
+                Ok(p) => p, Err(p) => p
+            };
+            return &self.list[..position]
         }
 
         // create sieve and filter with existing primes
@@ -245,9 +238,8 @@ impl PrimeBuffer {
     }
 
     pub fn clear(&mut self) {
-        self.list.clear();
-        self.list.push(2);
-        self.current = 3;
+        self.list = vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+        self.current = 41;
     }
 }
 
@@ -257,13 +249,32 @@ mod tests {
     use std::iter::FromIterator;
 
     #[test]
-    fn prime_test(){
+    fn prime_generation_test(){
         let mut pb = PrimeBuffer::new();
-        assert!(pb.is_prime(6469693333, None));
         let prime50 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
         let prime100 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
         assert_eq!(pb.primes(50), prime50);
         assert_eq!(pb.primes(100), prime100);
+    }
+    
+    #[test]
+    fn prime_assertion_test() {
+        let mut pb = PrimeBuffer::new();
+        assert!(pb.is_prime(6469693333));
+        let prime100 = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
+        for x in 2..100 {
+            assert_eq!(prime100.contains(&x), pb.is_prime(x));
+        }
+
+        let gprimes = pb.primes(10000).to_vec();
+        for x in gprimes {
+            assert!(pb.is_prime(x));
+        }
+    }
+
+    #[test]
+    fn factorization_test() {
+        let mut pb = PrimeBuffer::new();
         let fac123456789 = HashMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
         let fac = pb.factors(123456789);
         assert_eq!(fac, fac123456789);
