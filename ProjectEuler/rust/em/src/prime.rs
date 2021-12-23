@@ -1,9 +1,12 @@
 // u64 version of prime related functions
 // TODO: improve based on `primal`, `primes` and even `concurrent_prime_sieve` crates
+//       main idea is to use bitset for sieving
 
 use std::collections::{HashMap, HashSet};
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive};
 use num_bigint::BigUint;
+use rand::random;
+use crate::traits::Arithmetic;
 use crate::int64::integer::*;
 
 pub struct PrimeBuffer {
@@ -11,7 +14,7 @@ pub struct PrimeBuffer {
     current: u64 // all primes smaller than this value has to be in the prime list
 }
 
-impl PrimeBuffer { // TODO: this should be implemented for both int and bigint in same class
+impl PrimeBuffer {
     #[inline]
     pub fn new() -> Self {
         // store at least enough primes for miller test
@@ -30,11 +33,7 @@ impl PrimeBuffer { // TODO: this should be implemented for both int and bigint i
             return self.list.binary_search(&target).is_ok();
         }
 
-        // find 2^shift*u + 1 = n
-        let tm1 = target - 1;
-        let shift = tm1.trailing_zeros();
-        let u = tm1 >> shift;
-
+        // Then do a deterministic Miller test
         let max_a = match target {  // https://oeis.org/A014233
             0..=2047 => 2,
             2048..=1373653 => 3,
@@ -47,25 +46,9 @@ impl PrimeBuffer { // TODO: this should be implemented for both int and bigint i
             3825123056546413052.. => 37
         };
 
-        'witnessloop: for a in &self.list {
-            if *a > max_a { break }
-
-            let mut x = powmod(*a, u, target);
-            if x == 1 || x == target - 1 { continue }
-
-            for _ in 0..shift {
-                x = mulmod(x, x, target);
-                if x == target - 1 {
-                    continue 'witnessloop
-                }
-            }
-
-            if x != 1 {
-                return false
-            }
-        }
-
-        true
+        self.list.iter()
+            .take_while(|&x| *x <= max_a)
+            .all(|&x| target.is_sprp(x))
     }
 
     /// Test if a big integer is a prime, this function would carry out a probability test
@@ -73,7 +56,7 @@ impl PrimeBuffer { // TODO: this should be implemented for both int and bigint i
         if let Some(x) = target.to_u64() {
             return self.is_prime(x)
         }
-
+        // TODO: implement
         false
     }
 
@@ -87,114 +70,79 @@ impl PrimeBuffer { // TODO: this should be implemented for both int and bigint i
         const FACTOR_THRESHOLD: u64 = 1 << 10;
         if target < FACTOR_THRESHOLD {
             self.factors_naive(target)
-        }
-        else {
+        } else {
             self.factors_divide(target)
         }
     }
 
     // TODO:
-    // pub fn bfactors(&mut self, target: &BigUint) -> HashMap<u64, u64>
+    // pub fn bfactors(&mut self, target: &BigUint) -> Result<HashMap<u64, u64>, Vec<u64>>
+    // return list of found factors if not fully factored
 
     fn factors_naive(&mut self, target: u64) -> HashMap<u64, u64> {
+        debug_assert!(!self.is_prime(target));
+
         let mut t = target;
-        let mut result: HashMap<u64, u64> = HashMap::new();
-        for p in self.primes(sqrt(target) + 1) {
+        let mut result = HashMap::new();
+        for &p in self.primes(sqrt(target) + 1) {
             while t % p == 0 {
-                t = t / p;
-                *result.entry(*p).or_insert(0) += 1;
+                t /= p;
+                *result.entry(p).or_insert(0) += 1;
             }
             if t == 1 {
                 break
             }
         }
 
-        if t != 1 {
-            result.insert(t, 1);
-        }
+        debug_assert_eq!(t, 1); // the target should not be prime
         result
     }
 
-    /// Find the factors by dividing the target by a proper divider recursively
-    /// This function assumes target is not prime
+    // Find the factors by dividing the target by a proper divider recursively
     fn factors_divide(&mut self, target: u64) -> HashMap<u64, u64> {
-        // find a proper divisor
-        let mut lower_bound = 0;
-        let p = loop {
-            match self.divisor(target, Some(lower_bound)) {
-                Ok(d) => break d,
-                Err(l) => lower_bound = l
-            }
-        };
+        debug_assert!(!self.is_prime(target));
 
-        let mut f1 = self.factors(p);
-        let f2 = self.factors(target / p);
-        for (factor, exponent) in &f2 {
-            *f1.entry(*factor).or_insert(0) += exponent;
+        let d = self.divisor_rho(target);
+        let mut f1 = self.factors(d);
+        let f2 = self.factors(target / d);
+        for (&factor, &exponent) in &f2 {
+            *f1.entry(factor).or_insert(0) += &exponent;
         }
         f1
     }
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
-    /// If lower_bound is given, then return a divisor larger than lower_bound
-    /// If no divisor is found, then error value could tell that there's no divisor under that number
-    pub fn divisor(&mut self, target: u64, lower_bound: Option<u64>) -> Result<u64, u64> {
-        let lower_bound = lower_bound.unwrap_or(0);
+    /// Return None if it's a prime
+    pub fn divisor(&mut self, target: u64) -> Option<u64> {
+        if self.is_prime(target) { return None }
+
         const DIVISOR_THRESHOLD: u64 = 1 << 40;
         if target < DIVISOR_THRESHOLD {
-            self.divisor_naive(target, lower_bound)
-        }
-        else {
-            match self.divisor_rho(target) {
-                Some(d) => Ok(d), None => Err(lower_bound)
-            }
+            Some(self.divisor_naive(target))
+        } else {
+            Some(self.divisor_rho(target))
         }
     }
 
     // TODO
-    // pub fn bdivisor(&mut self, target: BigUint) -> Result<BigUint, BigUint>
+    // pub fn bdivisor(&mut self, target: BigUint) -> Option<BigUint>
 
-    fn divisor_naive(&mut self, target: u64, lower_bound: u64) -> Result<u64, u64> {
-        let upper_bound = sqrt(target) + 1;
-        match self.primes(upper_bound).iter()
-            .skip_while(|x| **x <= lower_bound)
-            .filter(|x| target % *x == 0)
-            .next() {
-                Some(x) => Ok(*x), None => Err(upper_bound)
-            }
+    // Get a factor by naive trials
+    fn divisor_naive(&mut self, target: u64) -> u64 {
+        debug_assert!(!self.is_prime(target));
+        *self.primes(sqrt(target) + 1).iter()
+            .filter(|&x| target % x == 0)
+            .next().unwrap()
     }
 
-    /// Pollard's rho algorithm
-    /// http://blog.csdn.net/z690933166/article/details/9865755
-    fn divisor_rho(&self, target: u64) -> Option<u64> {
-        let mut p = target;
-        while p >= target {
-            let mut a = randrange(1, target);
-            let mut b = a;
-            let t = randrange(1, target);
-            let mut i = 1; let mut j = 1;
-            p = loop {
-                i += 1;
-                a = (mulmod(a, a, target) + t) % target;
-                if a == b {
-                    break target;
-                }
-                let diff = if b > a { b - a } else { a - b };
-                let d = gcd(diff, target);
-                if 1 < d || d < a {
-                    break d;
-                }
-                if i == j {
-                    b = a;
-                    j <<= 1;
-                }
+    // Get a factor using pollard_rho
+    fn divisor_rho(&self, target: u64) -> u64 {
+        debug_assert!(!self.is_prime(target));
+        loop {
+            let offset = random::<u64>() % target;
+            if let Some(p) = target.pollard_rho(offset, 4) {
+                break p
             }
-        }
-
-        if p == 1 || p == target {
-            None
-        } else {
-            Some(p)
         }
     }
 
@@ -260,7 +208,7 @@ impl PrimeBuffer { // TODO: this should be implemented for both int and bigint i
     }
 
     pub fn clear(&mut self) {
-        self.list.truncate(12); // 2 ~ 37
+        self.list.truncate(12); // reserve 2 ~ 37 for miller test
         self.list.shrink_to_fit();
         self.current = 41;
     }
