@@ -1,8 +1,7 @@
 // u64 version of prime related functions
-// TODO: improve based on `primal`, `primes` and even `concurrent_prime_sieve` crates
-//       main idea is to use bitset for sieving
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
+use bitvec::prelude::bitvec;
 use num_traits::{ToPrimitive};
 use num_bigint::BigUint;
 use rand::random;
@@ -11,10 +10,10 @@ use crate::int64::integer::*;
 
 pub struct PrimeBuffer {
     list: Vec<u64>, // list of found prime numbers
-    current: u64 // all primes smaller than this value has to be in the prime list
+    current: u64 // all primes smaller than this value has to be in the prime list, should be an odd number
 }
 
-impl PrimeBuffer {
+impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-> rust copy cost
     #[inline]
     pub fn new() -> Self {
         // store at least enough primes for miller test
@@ -154,47 +153,54 @@ impl PrimeBuffer {
     /// # Note
     /// List primes works very slow for limit larger than 2^25 and won't work if limit > 2^30
     pub fn primes(&mut self, limit: u64) -> &[u64] {
-        if limit < self.current {
-            let position = match self.list.binary_search(&limit) {
+        let odd_limit = limit | 1; // make sure limit is odd
+        let current = self.current; // prevent borrowing self
+        debug_assert!(current % 2 == 1);
+
+        if odd_limit <= current {
+            let position = match self.list.binary_search(&odd_limit) {
                 Ok(p) => p, Err(p) => p
             };
             return &self.list[..position]
         }
 
         // create sieve and filter with existing primes
-        let mut sieve: HashSet<_> = ((self.current | 1) .. limit).step_by(2).collect();
+        // let mut sieve: HashSet<_> = ((self.current | 1) .. limit).step_by(2).collect();
+        let mut sieve = bitvec![0; ((odd_limit - current) / 2) as usize];
         for p in self.list.iter().skip(1) { // skip pre-filtered 2
-            let start = if p * p < self.current {
-                p * ((self.current / p) | 1)
+            let start = if p * p < current {
+                p * ((current / p) | 1)
             } else {
                 p * p
             };
-            for multi in (start..limit).step_by(2 * (*p as usize)) {
-                if sieve.contains(&multi) {
-                    sieve.remove(&multi);
+            for multi in (start .. odd_limit).step_by(2 * (*p as usize)) {
+                if multi >= current {
+                    sieve.set(((multi - current) / 2) as usize, true);
                 }
             }
         }
 
         // sieve with new primes
-        let new_start = self.current | 1;
-        let new_end = sqrt(limit) + 1;
-        for p in (new_start..new_end).step_by(2) {
-            if !sieve.contains(&p) {
+        for p in (current..sqrt(odd_limit) + 1).step_by(2) {
+            if sieve[(p - self.current) as usize] {
                 continue;
             }
-            for multi in (p * p .. limit).step_by(2 * (p as usize)) {
-                sieve.remove(&multi);
+            for multi in (p*p .. odd_limit).step_by(2 * (p as usize)) {
+                if multi >= current {
+                    sieve.set(((multi - self.current) / 2) as usize, true);
+                }
             }
         }
 
         // sort the sieve
-        let mut primes: Vec<_> = sieve.into_iter().collect();
-        primes.sort();
-        self.list.extend(primes.into_iter());
-        self.current = limit;
+        self.list.extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
+        self.current = odd_limit;
 
-        &self.list[..]
+        if *self.list.last().unwrap() > limit {
+            &self.list[..self.list.len()-1] // in this case odd_limit = limit + 1 is prime
+        } else {
+            &self.list[..]
+        }
     }
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use pyo3::prelude::*;
 use pyo3::{ffi, AsPyPointer, IntoPy, exceptions};
 use pyo3::types::{PyLong, PyType};
@@ -138,6 +139,27 @@ impl PrimeBuffer {
 
     fn primes(&mut self, limit: u64) -> PyResult<Vec<u64>> {
         Ok(self.data.primes(limit).to_vec())
+    }
+
+    fn nprimes(&mut self, count: usize) -> PyResult<Vec<u64>> {
+        Ok(self.data.nprimes(count).to_vec())
+    }
+
+    fn is_prime(&self, target: u64) -> PyResult<bool> {
+        Ok(self.data.is_prime(target))
+    }
+
+    fn factors(&mut self, target: u64) -> PyResult<HashMap<u64, u64>> {
+        Ok(self.data.factors(target))
+    }
+
+    fn divisor(&mut self, target: u64) -> PyResult<Option<u64>> {
+        Ok(self.data.divisor(target))
+    }
+
+    fn clear(&mut self) -> PyResult<()> {
+        self.data.clear();
+        Ok(())
     }
 }
 

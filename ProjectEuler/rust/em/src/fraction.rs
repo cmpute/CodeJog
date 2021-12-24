@@ -15,6 +15,7 @@ impl<T> QuadraticSurd<T>
 where T: Integer + Neg<Output = T> + FromPrimitive + Clone
 {
     pub fn new(a: T, b: T, c: T, r: T) -> Self {
+        // TODO: factorize r
         assert!(r > Zero::zero()); // TODO: it's possible to support r < 0, but we need complex number
 
         let (a, b, c) = if c >= Zero::zero() {
