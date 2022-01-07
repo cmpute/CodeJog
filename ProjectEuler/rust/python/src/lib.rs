@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use pyo3::prelude::*;
-use pyo3::{ffi, AsPyPointer, IntoPy, exceptions};
+use pyo3::{ffi, AsPyPointer, IntoPy};
+use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyLong, PyType};
 use std::os::raw::{c_int, c_uchar};
 use std::string::ToString;
+use std::convert::TryFrom;
 
 use num_bigint::{BigInt, BigUint, ToBigInt, ToBigUint};
 use em::prime::PrimeBuffer as PrimeBuffer64;
@@ -195,8 +197,14 @@ fn log(target: &PyAny, base: &PyAny) -> PyResult<PyObject> {
 fn sqrt(target: &PyAny) -> PyResult<PyObject> {
     let py = target.py();
     match target.extract()? {
-        IntTypes::Small(v) => Ok(int64::sqrt(v as u64).into_py(py)),
-        IntTypes::Big(_) => Err(exceptions::PyTypeError::new_err("Not Implemented"))
+        IntTypes::Small(v) => match u64::try_from(v) {
+            Ok(uv) => Ok(int64::sqrt(uv).into_py(py)),
+            Err(_) => Err(PyValueError::new_err("math domain error"))
+        },
+        IntTypes::Big(v) => match v.to_biguint() {
+            Some(uv) => Ok(intbig::sqrt(&uv).into_py(py)),
+            None => Err(PyValueError::new_err("math domain error"))
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 // u64 version of prime related functions
+// TODO REF: https://github.com/AtropineTears/num-primes/blob/master/src/lib.rs
 
 use std::collections::{HashMap};
 use bitvec::prelude::bitvec;
@@ -182,12 +183,12 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
 
         // sieve with new primes
         for p in (current..sqrt(odd_limit) + 1).step_by(2) {
-            if sieve[(p - self.current) as usize] {
+            if sieve[(p - current) as usize] {
                 continue;
             }
             for multi in (p*p .. odd_limit).step_by(2 * (p as usize)) {
                 if multi >= current {
-                    sieve.set(((multi - self.current) / 2) as usize, true);
+                    sieve.set(((multi - current) / 2) as usize, true);
                 }
             }
         }

@@ -1,4 +1,4 @@
-use em::int64::integer::gcd;
+use em::traits::Integer;
 
 const LIMIT: u64 = 20;
 
@@ -7,7 +7,7 @@ fn solve(limit: Option<u64>) -> u64 {
 
     let mut total = 1;
     for i in 2..limit + 1 {
-        total = total * i / gcd(total, i);
+        total = total * i / total.gcd(&i);
     }
     total
 }
