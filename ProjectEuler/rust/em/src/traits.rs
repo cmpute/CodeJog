@@ -17,7 +17,7 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
 
 // wrapping simple functions
 pub trait ArithmeticHelpers {
-    fn trailing_zeros(&self) -> u32;
+    fn trailing_zeros(&self) -> usize;
 }
 
 /// This trait describes arithmetic functions on a integer
@@ -31,13 +31,13 @@ pub trait Arithmetic : Integer + NumOps {
 
 impl<T> Arithmetic for T
 where T: Integer + ArithmeticHelpers + FromPrimitive + NumRef + SampleUniform + Clone,
-for<'r> &'r T: RefNum<T> + std::ops::Shr<Output = T> + ModInt<&'r T, &'r T, Output = T>
+for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_sprp(&self, witness: T) -> bool {
         // find 2^shift*u + 1 = n
         let tm1 = self - T::one();
         let shift = tm1.trailing_zeros();
-        let u = &tm1 >> &T::from_u32(shift).unwrap();
+        let u = &tm1 >> shift;
 
         let mut x = witness.pow_mod(&u, self);
         if x == T::one() || x == tm1 { return true }

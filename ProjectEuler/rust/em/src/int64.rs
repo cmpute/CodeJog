@@ -33,7 +33,7 @@ pub fn is_sq(target: u64) -> bool {
 impl ArithmeticHelpers for u64 {
     /// Returns greatest common divisor between a, b
     #[inline]
-    fn trailing_zeros(&self) -> u32 { u64::trailing_zeros(*self) }
+    fn trailing_zeros(&self) -> usize { u64::trailing_zeros(*self) as usize }
 }
 
 impl ModInt<&u64, &u64> for &u64 {

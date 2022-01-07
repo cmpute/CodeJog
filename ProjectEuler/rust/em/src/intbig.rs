@@ -41,9 +41,9 @@ pub fn is_sq(target: &BigUint) -> bool {
 impl ArithmeticHelpers for BigUint {
     /// Returns greatest common divisor between a, b
     #[inline]
-    fn trailing_zeros(&self) -> u32 { 
+    fn trailing_zeros(&self) -> usize { 
         match BigUint::trailing_zeros(&self) {
-            Some(a) => a as u32, None => 0
+            Some(a) => a as usize, None => 0
         }
     }
 }

@@ -1,17 +1,22 @@
 // u64 version of prime related functions
 // TODO REF: https://github.com/AtropineTears/num-primes/blob/master/src/lib.rs
+// XXX: implement streaming prime sieve, like `primal` crate
 
 use std::collections::{HashMap};
 use bitvec::prelude::bitvec;
-use num_traits::{ToPrimitive};
+use num_traits::{ToPrimitive, One, Pow};
 use num_bigint::BigUint;
+use num_integer::Integer;
 use rand::random;
 use crate::traits::Arithmetic;
-use crate::int64::*;
 
 pub struct PrimeBuffer {
     list: Vec<u64>, // list of found prime numbers
     current: u64 // all primes smaller than this value has to be in the prime list, should be an odd number
+}
+
+pub enum Primality {
+    Yes, No, Probable(f32) // Return the probability of a number being a prime
 }
 
 impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-> rust copy cost
@@ -27,8 +32,12 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     pub fn is_prime(&self, target: u64) -> bool {
         assert!(target > 1);
 
+        // shortcuts
+        if target.is_even() {
+            return false;
+        }
+
         // first find in the prime list
-        // TODO: this might be slow if target is quite large
         if target < self.current {
             return self.list.binary_search(&target).is_ok();
         }
@@ -52,15 +61,26 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     }
 
     /// Test if a big integer is a prime, this function would carry out a probability test
-    pub fn is_bprime(&self, target: &BigUint) -> bool {
-        if let Some(x) = target.to_u64() {
-            return self.is_prime(x)
+    pub fn is_bprime(&self, target: &BigUint) -> Primality {
+        // shortcuts
+        if target.is_even() {
+            return Primality::No;
         }
-        // TODO: implement
-        false
+
+        if let Some(x) = target.to_u64() {
+            return match self.is_prime(x) {
+                true => Primality::Yes, false => Primality::No
+            };
+        }
+
+        // miller-rabin test
+        // TODO: random prime choice
+        match self.list.iter().take(4).all(|&x| target.is_sprp(BigUint::from(x))) {
+            true => Primality::Probable(f32::NAN), false => Primality::No
+        }
     }
 
-    pub fn factors(&mut self, target: u64) -> HashMap<u64, u64> {
+    pub fn factors(&mut self, target: u64) -> HashMap<u64, usize> {
         if self.is_prime(target) {
             let mut result = HashMap::new();
             result.insert(target, 1);
@@ -75,40 +95,105 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
     }
 
-    // TODO:
-    // pub fn bfactors(&mut self, target: &BigUint) -> Result<HashMap<u64, u64>, Vec<u64>>
     // return list of found factors if not fully factored
+    pub fn bfactors(&mut self, target: &BigUint) -> Result<HashMap<BigUint, usize>, Vec<BigUint>> {
+        // if the target is in u64 range
+        if let Some(x) = target.to_u64() {
+            return Ok(self.factors(x).iter().map(|(&k, &v)| (BigUint::from(k), v)).collect());
+        }
 
-    fn factors_naive(&mut self, target: u64) -> HashMap<u64, u64> {
+        // test the existing primes
+        let mut residual = target.clone();
+        let mut trivial = HashMap::new();
+        for &p in &self.list {
+            while residual.is_multiple_of(&BigUint::from(p)) {
+                residual /= p;
+                *trivial.entry(p).or_insert(0) += 1;
+            }
+            if residual == BigUint::one() {
+                return Ok(trivial.iter().map(|(&k, &v)| (BigUint::from(k), v)).collect());
+            }
+        }
+
+        // find factors by dividing
+        let divided = self.bfactors_divide(&residual);
+
+        // check if the number is fully factored
+        let mut verify = BigUint::one();
+        for (factor, exponent) in &trivial {
+            verify *= factor.pow(exponent);
+        }
+        for (factor, exponent) in &divided {
+            verify *= Pow::pow(factor, exponent);
+        }
+
+        // return results
+        if &verify == target {
+            let mut result = divided;
+            for (factor, exponent) in trivial {
+                *result.entry(BigUint::from(factor)).or_insert(0) += &exponent;
+            }
+            Ok(result)
+        } else {
+            Err(trivial.into_keys().map(|x| BigUint::from(x)).chain(divided.into_keys()).collect())
+        }
+    }
+
+    fn factors_naive(&mut self, target: u64) -> HashMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
-        let mut t = target;
+        let mut residual = target;
         let mut result = HashMap::new();
-        for &p in self.primes(sqrt(target) + 1) {
-            while t % p == 0 {
-                t /= p;
+        for &p in self.primes(num_integer::sqrt(target) + 1) {
+            while residual % p == 0 {
+                residual /= p;
                 *result.entry(p).or_insert(0) += 1;
             }
-            if t == 1 {
+            if residual == 1 {
                 break
             }
         }
 
-        debug_assert_eq!(t, 1); // the target should not be prime
+        debug_assert_eq!(residual, 1); // the target should not be prime
         result
     }
 
-    // Find the factors by dividing the target by a proper divider recursively
-    fn factors_divide(&mut self, target: u64) -> HashMap<u64, u64> {
+    /// Find the factors by dividing the target by a proper divider recursively
+    fn factors_divide(&mut self, target: u64) -> HashMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
         let d = self.divisor_rho(target);
         let mut f1 = self.factors(d);
         let f2 = self.factors(target / d);
-        for (&factor, &exponent) in &f2 {
+        for (factor, exponent) in f2 {
             *f1.entry(factor).or_insert(0) += &exponent;
         }
         f1
+    }
+
+    /// Find the factors by dividing the target by a proper divider, if the target is prime
+    /// or no divider is found, then an empty map is returned.
+    ///
+    /// Note: 
+    /// We don't factorize probable prime since it will takes a long time.
+    /// To factorize a probable prime, use bdivisor
+    fn bfactors_divide(&mut self, target: &BigUint) -> HashMap<BigUint, usize> {
+        if matches! (self.is_bprime(target), Primality::Yes | Primality::Probable(_)) {
+            return HashMap::new();
+        }
+
+        match self.bdivisor_rho(target) {
+            Some(d) => {
+                let mut f1 = self.bfactors_divide(&d);
+                if f1.len() == 0 { f1.insert(d.clone(), 1); } // add divisor if it's a prime
+                let f2 = self.bfactors_divide(&(target / d));
+                for (factor, exponent) in f2 {
+                    *f1.entry(factor).or_insert(0) += exponent;
+                }
+                f1
+            },
+            None => HashMap::new()
+        }
     }
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
@@ -124,13 +209,29 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
     }
 
-    // TODO
-    // pub fn bdivisor(&mut self, target: BigUint) -> Option<BigUint>
+    /// Return a proper divisor of target (randomly), even works for very large numbers
+    /// Return None if it's a prime or no factor is found
+    pub fn bdivisor(&mut self, target: &BigUint) -> Option<BigUint> {
+        // if the target is in u64 range
+        if let Some(x) = target.to_u64() {
+            return match self.divisor(x) {
+                Some(d) => Some(BigUint::from(d)), None => None
+            };
+        }
+
+        let primality = self.is_bprime(target);
+        if let Primality::Yes = primality {
+            return None;
+        }
+
+        // try to get a factor using pollard_rho with 4x4 trials
+        self.bdivisor_rho(target)
+    }
 
     // Get a factor by naive trials
     fn divisor_naive(&mut self, target: u64) -> u64 {
         debug_assert!(!self.is_prime(target));
-        *self.primes(sqrt(target) + 1).iter()
+        *self.primes(num_integer::sqrt(target) + 1).iter()
             .filter(|&x| target % x == 0)
             .next().unwrap()
     }
@@ -144,6 +245,15 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
                 break p
             }
         }
+    }
+    fn bdivisor_rho(&self, target: &BigUint) -> Option<BigUint> {
+        for _ in 0..4 {
+            let offset = random::<u64>();
+            if let Some(p) = target.pollard_rho(BigUint::from(offset), 4) {
+                return Some(p)
+            }
+        }
+        None
     }
 
     /// Returns all primes **below** limit. The primes are sorted.
@@ -182,7 +292,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
 
         // sieve with new primes
-        for p in (current..sqrt(odd_limit) + 1).step_by(2) {
+        for p in (current..num_integer::sqrt(odd_limit) + 1).step_by(2) {
             if sieve[(p - current) as usize] {
                 continue;
             }
@@ -256,6 +366,10 @@ mod tests {
         let fac123456789 = HashMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
         let fac = pb.factors(123456789);
         assert_eq!(fac, fac123456789);
+
+        let m131 = BigUint::from(2u8).pow(131usize) - 1u8; // m131/263 is a large prime
+        let fac = pb.bfactors(&m131);
+        assert!(matches!(fac, Err(f) if f.len() > 0));
     }
 }
 

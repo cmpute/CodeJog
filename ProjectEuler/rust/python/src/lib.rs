@@ -7,9 +7,9 @@ use std::os::raw::{c_int, c_uchar};
 use std::string::ToString;
 use std::convert::TryFrom;
 
+use num_integer;
 use num_bigint::{BigInt, BigUint, ToBigInt, ToBigUint};
-use em::prime::PrimeBuffer as PrimeBuffer64;
-use em::{int64, intbig};
+use em::{int64, intbig, prime};
 use em::fraction as fraction;
 
 // TODO: implement unified API for both int and bigint
@@ -130,34 +130,68 @@ impl QuadraticSurd {
 
 #[pyclass]
 struct PrimeBuffer {
-    data: PrimeBuffer64
+    data: prime::PrimeBuffer
 }
 
 #[pymethods]
 impl PrimeBuffer {
     #[new]
     fn __new__() -> Self {
-        PrimeBuffer { data: PrimeBuffer64::new() }
+        PrimeBuffer { data: prime::PrimeBuffer::new() }
     }
 
-    fn primes(&mut self, limit: u64) -> PyResult<Vec<u64>> {
-        Ok(self.data.primes(limit).to_vec())
+    fn primes(&mut self, limit: u64, silent: Option<bool>) -> PyResult<Option<Vec<u64>>> {
+        if silent.unwrap_or(false) {
+            self.data.primes(limit); Ok(None)
+        } else {
+            Ok(Some(self.data.primes(limit).to_vec()))
+        }
     }
 
-    fn nprimes(&mut self, count: usize) -> PyResult<Vec<u64>> {
-        Ok(self.data.nprimes(count).to_vec())
+    fn nprimes(&mut self, count: usize, silent: Option<bool>) -> PyResult<Option<Vec<u64>>> {
+        if silent.unwrap_or(false) {
+            self.data.nprimes(count); Ok(None)
+        } else {
+            Ok(Some(self.data.nprimes(count).to_vec()))
+        }
     }
 
     fn is_prime(&self, target: u64) -> PyResult<bool> {
         Ok(self.data.is_prime(target))
     }
 
-    fn factors(&mut self, target: u64) -> PyResult<HashMap<u64, u64>> {
+    fn is_bprime(&self, target: &PyAny) -> PyResult<PyObject> {
+        let py = target.py();
+        match target.extract()? {
+            IntTypes::Small(v) => Ok(self.data.is_prime(v as u64).into_py(py)),
+            IntTypes::Big(v) => match self.data.is_bprime(&v.to_biguint().unwrap()) {
+                prime::Primality::Yes => Ok(true.into_py(py)),
+                prime::Primality::No => Ok(false.into_py(py)),
+                prime::Primality::Probable(p) => Ok(p.into_py(py))
+            }
+        }
+    }
+
+    fn factors(&mut self, target: u64) -> PyResult<HashMap<u64, usize>> {
         Ok(self.data.factors(target))
+    }
+
+    fn bfactors(&mut self, target: &PyAny) -> PyResult<PyObject> {
+        let py = target.py();
+        match target.extract()? {
+            IntTypes::Small(v) => Ok(self.data.factors(v as u64).into_py(py)),
+            IntTypes::Big(v) => match self.data.bfactors(&v.to_biguint().unwrap()) {
+                Ok(f) => Ok(f.into_py(py)), Err(f) => Ok(f.into_py(py))
+            }
+        }
     }
 
     fn divisor(&mut self, target: u64) -> PyResult<Option<u64>> {
         Ok(self.data.divisor(target))
+    }
+
+    fn bdivisor(&mut self, target: BigUint) -> PyResult<Option<BigUint>> {
+        Ok(self.data.bdivisor(&target))
     }
 
     fn clear(&mut self) -> PyResult<()> {
@@ -199,12 +233,12 @@ fn sqrt(target: &PyAny) -> PyResult<PyObject> {
     let py = target.py();
     match target.extract()? {
         IntTypes::Small(v) => match u64::try_from(v) {
-            Ok(uv) => Ok(int64::sqrt(uv).into_py(py)),
-            Err(_) => Err(PyValueError::new_err("math domain error"))
+            Ok(uv) => Ok(num_integer::sqrt(uv).into_py(py)),
+            Err(_) => Err(PyValueError::new_err("positive input is required"))
         },
         IntTypes::Big(v) => match v.to_biguint() {
-            Some(uv) => Ok(intbig::sqrt(&uv).into_py(py)),
-            None => Err(PyValueError::new_err("math domain error"))
+            Some(uv) => Ok(num_integer::sqrt(uv).into_py(py)),
+            None => Err(PyValueError::new_err("positive input is required"))
         }
     }
 }
