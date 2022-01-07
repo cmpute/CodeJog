@@ -1,5 +1,5 @@
 pub use num_integer::Integer;
-use num_traits::{RefNum, NumOps, FromPrimitive};
+use num_traits::{RefNum, NumOps, NumRef, FromPrimitive};
 use rand::{Rng, thread_rng};
 use rand::distributions::Uniform;
 use rand::distributions::uniform::SampleUniform;
@@ -14,7 +14,6 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     /// Return (self ^ exp) % m
     fn pow_mod(self, exp: Rhs, m: Modulus) -> Self::Output;
 }
-// TODO: https://github.com/rust-num/num-bigint/blob/master/src/biguint/power.rs
 
 // wrapping simple functions
 pub trait ArithmeticHelpers {
@@ -31,7 +30,7 @@ pub trait Arithmetic : Integer + NumOps {
 }
 
 impl<T> Arithmetic for T
-where T: Integer + ArithmeticHelpers + FromPrimitive + RefNum<T> + SampleUniform + Clone,
+where T: Integer + ArithmeticHelpers + FromPrimitive + NumRef + SampleUniform + Clone,
 for<'r> &'r T: RefNum<T> + std::ops::Shr<Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_sprp(&self, witness: T) -> bool {

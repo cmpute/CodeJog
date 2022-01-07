@@ -7,7 +7,7 @@ use num_traits::{ToPrimitive};
 use num_bigint::BigUint;
 use rand::random;
 use crate::traits::Arithmetic;
-use crate::int64::integer::*;
+use crate::int64::*;
 
 pub struct PrimeBuffer {
     list: Vec<u64>, // list of found prime numbers

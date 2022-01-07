@@ -9,10 +9,8 @@ use std::convert::TryFrom;
 
 use num_bigint::{BigInt, BigUint, ToBigInt, ToBigUint};
 use em::prime::PrimeBuffer as PrimeBuffer64;
-use em::int64::{integer as int64};
-use em::int64::fraction::QuadraticSurd as QuadraticSurdInt64;
-use em::bigint::{integer as intbig};
-use em::bigint::fraction::QuadraticSurd as QuadraticSurdBig;
+use em::{int64, intbig};
+use em::fraction as fraction;
 
 // TODO: implement unified API for both int and bigint
 
@@ -96,6 +94,9 @@ impl<'source> FromPyObject<'source> for IntTypes {
         }
     }
 }
+
+type QuadraticSurdInt64 = fraction::QuadraticSurd<i64>;
+type QuadraticSurdBig = fraction::QuadraticSurd<BigInt>;
 
 enum QuadraticSurdUnified {
     D64(QuadraticSurdInt64),

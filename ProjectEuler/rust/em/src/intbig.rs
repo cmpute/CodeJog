@@ -26,6 +26,7 @@ pub fn log(target: &BigUint, base: &BigUint) -> u64 {
     counter
 }
 
+// TODO: change this method to num_interger::sqrt
 #[inline]
 pub fn sqrt(target: &BigUint) -> BigUint {
     target.sqrt()
