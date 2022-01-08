@@ -3,7 +3,6 @@ use num_integer::{Integer, sqrt};
 use num_bigint::BigInt;
 use std::ops::Neg;
 use std::fmt;
-use crate::int64::sqrt as sqrt64;
 
 /// A type representation quadratic surd number (a + b*sqrt(r)) / c
 #[derive(PartialEq, Eq, Hash)]
@@ -63,7 +62,7 @@ where T: fmt::Display
 
 impl QuadraticSurd<i64> {
     pub fn floor(&self) -> i64 {
-        let ar = sqrt64((self.a * self.a * self.r) as u64) as i64;
+        let ar = sqrt((self.a * self.a * self.r) as u64) as i64;
         let ar = if self.a >= 0 { ar } else { -(ar + 1) };
         let nom = ar + self.b;
         let nom = if nom >= 0 { nom } else {nom - self.c + 1};

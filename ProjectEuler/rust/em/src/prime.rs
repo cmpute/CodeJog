@@ -1,5 +1,4 @@
-// u64 version of prime related functions
-// TODO REF: https://github.com/AtropineTears/num-primes/blob/master/src/lib.rs
+/// Prime related functionalities
 // XXX: implement streaming prime sieve, like `primal` crate
 
 use std::collections::{HashMap};
@@ -7,7 +6,7 @@ use bitvec::prelude::bitvec;
 use num_traits::{ToPrimitive, One, Pow};
 use num_bigint::BigUint;
 use num_integer::Integer;
-use rand::random;
+use rand::{random, seq::IteratorRandom};
 use crate::traits::Arithmetic;
 
 pub struct PrimeBuffer {
@@ -16,7 +15,9 @@ pub struct PrimeBuffer {
 }
 
 pub enum Primality {
-    Yes, No, Probable(f32) // Return the probability of a number being a prime
+    Yes, No,
+    /// carrying the probability of the number being a prime
+    Probable(f32)
 }
 
 impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-> rust copy cost
@@ -34,7 +35,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
 
         // shortcuts
         if target.is_even() {
-            return false;
+            return target == 2;
         }
 
         // first find in the prime list
@@ -61,10 +62,11 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     }
 
     /// Test if a big integer is a prime, this function would carry out a probability test
-    pub fn is_bprime(&self, target: &BigUint) -> Primality {
+    /// If `trials` is positive, then witness numbers are selected randomly, otherwise selecting from start
+    pub fn is_bprime(&self, target: &BigUint, trials: Option<i32>) -> Primality {
         // shortcuts
         if target.is_even() {
-            return Primality::No;
+            return if target == &BigUint::from(2u8) { Primality::Yes } else { Primality::No };
         }
 
         if let Some(x) = target.to_u64() {
@@ -74,9 +76,15 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
 
         // miller-rabin test
-        // TODO: random prime choice
-        match self.list.iter().take(4).all(|&x| target.is_sprp(BigUint::from(x))) {
-            true => Primality::Probable(f32::NAN), false => Primality::No
+        let trials = trials.unwrap_or(4);
+        let witness_list = if trials > 0 { 
+            let mut rng = rand::thread_rng();
+            self.list.iter().choose_multiple(&mut rng, trials as usize)
+        } else {
+            self.list.iter().take((-trials) as usize).collect()
+        };
+        match witness_list.iter().all(|&x| target.is_sprp(BigUint::from(*x))) {
+            true => Primality::Probable(1. - 0.25_f32.powi(trials.abs())), false => Primality::No
         }
     }
 
@@ -95,8 +103,9 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
     }
 
-    // return list of found factors if not fully factored
-    pub fn bfactors(&mut self, target: &BigUint) -> Result<HashMap<BigUint, usize>, Vec<BigUint>> {
+    /// Return list of found factors if not fully factored
+    /// `trials` determines the maximum Pollard rho trials for each component
+    pub fn bfactors(&mut self, target: &BigUint, trials: Option<i32>) -> Result<HashMap<BigUint, usize>, Vec<BigUint>> {
         // if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return Ok(self.factors(x).iter().map(|(&k, &v)| (BigUint::from(k), v)).collect());
@@ -116,7 +125,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
 
         // find factors by dividing
-        let divided = self.bfactors_divide(&residual);
+        let divided = self.bfactors_divide(&residual, trials.unwrap_or(4));
 
         // check if the number is fully factored
         let mut verify = BigUint::one();
@@ -177,16 +186,16 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     /// Note: 
     /// We don't factorize probable prime since it will takes a long time.
     /// To factorize a probable prime, use bdivisor
-    fn bfactors_divide(&mut self, target: &BigUint) -> HashMap<BigUint, usize> {
-        if matches! (self.is_bprime(target), Primality::Yes | Primality::Probable(_)) {
+    fn bfactors_divide(&mut self, target: &BigUint, trials: i32) -> HashMap<BigUint, usize> {
+        if matches! (self.is_bprime(target, None), Primality::Yes | Primality::Probable(_)) {
             return HashMap::new();
         }
 
-        match self.bdivisor_rho(target) {
+        match self.bdivisor_rho(target, trials) {
             Some(d) => {
-                let mut f1 = self.bfactors_divide(&d);
+                let mut f1 = self.bfactors_divide(&d, trials);
                 if f1.len() == 0 { f1.insert(d.clone(), 1); } // add divisor if it's a prime
-                let f2 = self.bfactors_divide(&(target / d));
+                let f2 = self.bfactors_divide(&(target / d), trials);
                 for (factor, exponent) in f2 {
                     *f1.entry(factor).or_insert(0) += exponent;
                 }
@@ -201,7 +210,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     pub fn divisor(&mut self, target: u64) -> Option<u64> {
         if self.is_prime(target) { return None }
 
-        const DIVISOR_THRESHOLD: u64 = 1 << 40;
+        const DIVISOR_THRESHOLD: u64 = 1 << 40; // TODO: benchmark this
         if target < DIVISOR_THRESHOLD {
             Some(self.divisor_naive(target))
         } else {
@@ -211,7 +220,8 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
     /// Return None if it's a prime or no factor is found
-    pub fn bdivisor(&mut self, target: &BigUint) -> Option<BigUint> {
+    /// `trials` determine max Pollard rho trials
+    pub fn bdivisor(&mut self, target: &BigUint, trials: Option<i32>) -> Option<BigUint> {
         // if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return match self.divisor(x) {
@@ -219,13 +229,13 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
             };
         }
 
-        let primality = self.is_bprime(target);
+        let primality = self.is_bprime(target, None);
         if let Primality::Yes = primality {
             return None;
         }
 
         // try to get a factor using pollard_rho with 4x4 trials
-        self.bdivisor_rho(target)
+        self.bdivisor_rho(target, trials.unwrap_or(4))
     }
 
     // Get a factor by naive trials
@@ -246,8 +256,8 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
             }
         }
     }
-    fn bdivisor_rho(&self, target: &BigUint) -> Option<BigUint> {
-        for _ in 0..4 {
+    fn bdivisor_rho(&self, target: &BigUint, trials: i32) -> Option<BigUint> {
+        for _ in 0..trials {
             let offset = random::<u64>();
             if let Some(p) = target.pollard_rho(BigUint::from(offset), 4) {
                 return Some(p)
@@ -358,6 +368,11 @@ mod tests {
         for x in gprimes {
             assert!(pb.is_prime(x));
         }
+
+        assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(19) - 1), None), Primality::Yes));
+        assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(23) - 1), None), Primality::No));
+        let m89 = BigUint::from(2u8).pow(89usize) - 1u8;
+        assert!(matches!(pb.is_bprime(&m89, None), Primality::Probable(_)));
     }
 
     #[test]
@@ -368,7 +383,7 @@ mod tests {
         assert_eq!(fac, fac123456789);
 
         let m131 = BigUint::from(2u8).pow(131usize) - 1u8; // m131/263 is a large prime
-        let fac = pb.bfactors(&m131);
+        let fac = pb.bfactors(&m131, None);
         assert!(matches!(fac, Err(f) if f.len() > 0));
     }
 }

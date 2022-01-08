@@ -1,3 +1,4 @@
+use num_integer::sqrt;
 use crate::traits::{ModInt, ArithmeticHelpers};
 
 /// Returns floor(log(2, target))
@@ -15,12 +16,6 @@ pub fn log(target: u64, base: u64) -> u8 {
         2 => lb(target),
         _ => (target as f32).log(base as f32) as u8
     }
-}
-
-/// Returns floor(sqrt(target))
-#[inline]
-pub fn sqrt(target: u64) -> u64 {
-    (target as f64).sqrt() as u64
 }
 
 // Check whether input is a square number
@@ -109,7 +104,6 @@ mod tests {
         // let b = rand::random::<u64>() % 100000;
         assert_eq!(lb(a), (a as f32).log2() as u8);
         assert_eq!(log(a, 8), (a as f32).log(8.) as u8);
-        assert_eq!(sqrt(a), (a as f32).sqrt() as u64);
     }
 
     #[test]

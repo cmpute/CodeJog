@@ -12,7 +12,7 @@ use num_bigint::{BigInt, BigUint, ToBigInt, ToBigUint};
 use em::{int64, intbig, prime};
 use em::fraction as fraction;
 
-// TODO: implement unified API for both int and bigint
+// ----------- Helper functions and types -----------
 
 enum IntTypes {
     Small(i64),
@@ -95,6 +95,24 @@ impl<'source> FromPyObject<'source> for IntTypes {
     }
 }
 
+#[inline]
+fn requires_u64(v: i64) -> PyResult<u64> {
+    match u64::try_from(v) {
+        Ok(uv) => Ok(uv),
+        Err(_) => Err(PyValueError::new_err("positive input is required"))
+    }
+}
+
+#[inline]
+fn requires_ubig<T: ToBigUint>(v: &T) -> PyResult<BigUint> {
+    match v.to_biguint() {
+        Some(uv) => Ok(uv),
+        None => Err(PyValueError::new_err("positive input is required"))
+    }
+}
+
+// ---------- fraction related ----------
+
 type QuadraticSurdInt64 = fraction::QuadraticSurd<i64>;
 type QuadraticSurdBig = fraction::QuadraticSurd<BigInt>;
 
@@ -104,7 +122,7 @@ enum QuadraticSurdUnified {
 }
 
 #[pyclass]
-struct QuadraticSurd { // TODO: store normal version and bigint version in same Python struct
+struct QuadraticSurd {
     data: QuadraticSurdUnified
 }
 
@@ -127,6 +145,8 @@ impl QuadraticSurd {
         Ok(QuadraticSurd { data: QuadraticSurdUnified::D64(QuadraticSurdInt64::from_sqrt(target)) })
     }
 }
+
+// ----------- prime related -----------
 
 #[pyclass]
 struct PrimeBuffer {
@@ -160,11 +180,11 @@ impl PrimeBuffer {
         Ok(self.data.is_prime(target))
     }
 
-    fn is_bprime(&self, target: &PyAny) -> PyResult<PyObject> {
+    fn is_bprime(&self, target: &PyAny, trials: Option<i32>) -> PyResult<PyObject> {
         let py = target.py();
         match target.extract()? {
             IntTypes::Small(v) => Ok(self.data.is_prime(v as u64).into_py(py)),
-            IntTypes::Big(v) => match self.data.is_bprime(&v.to_biguint().unwrap()) {
+            IntTypes::Big(v) => match self.data.is_bprime(&v.to_biguint().unwrap(), trials) {
                 prime::Primality::Yes => Ok(true.into_py(py)),
                 prime::Primality::No => Ok(false.into_py(py)),
                 prime::Primality::Probable(p) => Ok(p.into_py(py))
@@ -176,11 +196,11 @@ impl PrimeBuffer {
         Ok(self.data.factors(target))
     }
 
-    fn bfactors(&mut self, target: &PyAny) -> PyResult<PyObject> {
+    fn bfactors(&mut self, target: &PyAny, trials: Option<i32>) -> PyResult<PyObject> {
         let py = target.py();
         match target.extract()? {
             IntTypes::Small(v) => Ok(self.data.factors(v as u64).into_py(py)),
-            IntTypes::Big(v) => match self.data.bfactors(&v.to_biguint().unwrap()) {
+            IntTypes::Big(v) => match self.data.bfactors(&v.to_biguint().unwrap(), trials) {
                 Ok(f) => Ok(f.into_py(py)), Err(f) => Ok(f.into_py(py))
             }
         }
@@ -190,8 +210,8 @@ impl PrimeBuffer {
         Ok(self.data.divisor(target))
     }
 
-    fn bdivisor(&mut self, target: BigUint) -> PyResult<Option<BigUint>> {
-        Ok(self.data.bdivisor(&target))
+    fn bdivisor(&mut self, target: BigUint, trials: Option<i32>) -> PyResult<Option<BigUint>> {
+        Ok(self.data.bdivisor(&target, trials))
     }
 
     fn clear(&mut self) -> PyResult<()> {
@@ -200,14 +220,15 @@ impl PrimeBuffer {
     }
 }
 
+// ---------- integer functions -----------
+
 /// Returns floor(log(2, target))
 #[pyfunction]
 fn lb(target: &PyAny) -> PyResult<PyObject> {
     let py = target.py();
     match target.extract()? {
-        // TODO: correctly handle the case where target < 0
-        IntTypes::Small(v) => Ok(int64::lb(v as u64).into_py(py)),
-        IntTypes::Big(v) => Ok(intbig::lb(&v.to_biguint().unwrap()).into_py(py))
+        IntTypes::Small(v) => Ok(int64::lb(requires_u64(v)?).into_py(py)),
+        IntTypes::Big(v) => Ok(intbig::lb(&requires_ubig(&v)?).into_py(py))
     }
 }
 
@@ -216,14 +237,12 @@ fn log(target: &PyAny, base: &PyAny) -> PyResult<PyObject> {
     let py = target.py();
     match target.extract()? {
         IntTypes::Small(v) => match base.extract()? {
-            IntTypes::Small(b) => Ok(int64::log(v as u64, b as u64).into_py(py)),
-            IntTypes::Big(b) => Ok(intbig::log(&v.to_biguint().unwrap(), &b.to_biguint().unwrap()).into_py(py)),
+            IntTypes::Small(b) => Ok(int64::log(requires_u64(v)?, requires_u64(b)?).into_py(py)),
+            IntTypes::Big(b) => Ok(intbig::log(&requires_ubig(&v)?, &requires_ubig(&b)?).into_py(py)),
         },
         IntTypes::Big(v) => {
-            let uv = v.to_biguint().unwrap();
             let b: IntTypes = base.extract()?;
-            let ub = b.to_biguint().unwrap();
-            Ok(intbig::log(&uv, &ub).into_py(py))
+            Ok(intbig::log(&requires_ubig(&v)?, &requires_ubig(&b)?).into_py(py))
         }
     }
 }
@@ -232,14 +251,8 @@ fn log(target: &PyAny, base: &PyAny) -> PyResult<PyObject> {
 fn sqrt(target: &PyAny) -> PyResult<PyObject> {
     let py = target.py();
     match target.extract()? {
-        IntTypes::Small(v) => match u64::try_from(v) {
-            Ok(uv) => Ok(num_integer::sqrt(uv).into_py(py)),
-            Err(_) => Err(PyValueError::new_err("positive input is required"))
-        },
-        IntTypes::Big(v) => match v.to_biguint() {
-            Some(uv) => Ok(num_integer::sqrt(uv).into_py(py)),
-            None => Err(PyValueError::new_err("positive input is required"))
-        }
+        IntTypes::Small(v) => Ok(num_integer::sqrt(requires_u64(v)?).into_py(py)),
+        IntTypes::Big(v) => Ok(num_integer::sqrt(requires_ubig(&v)?).into_py(py))
     }
 }
 
