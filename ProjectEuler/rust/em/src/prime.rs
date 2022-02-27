@@ -95,7 +95,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
             return result;
         }
 
-        const FACTOR_THRESHOLD: u64 = 1 << 10;
+        const FACTOR_THRESHOLD: u64 = 1 << 28;
         if target < FACTOR_THRESHOLD {
             self.factors_naive(target)
         } else {
@@ -148,7 +148,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
         }
     }
 
-    fn factors_naive(&mut self, target: u64) -> HashMap<u64, usize> {
+    pub fn factors_naive(&mut self, target: u64) -> HashMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
         let mut residual = target;
@@ -163,12 +163,14 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
             }
         }
 
-        debug_assert_eq!(residual, 1); // the target should not be prime
+        if residual != 1 {
+            result.insert(residual, 1);
+        }
         result
     }
 
     /// Find the factors by dividing the target by a proper divider recursively
-    fn factors_divide(&mut self, target: u64) -> HashMap<u64, usize> {
+    pub fn factors_divide(&mut self, target: u64) -> HashMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
         let d = self.divisor_rho(target);
@@ -210,7 +212,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     pub fn divisor(&mut self, target: u64) -> Option<u64> {
         if self.is_prime(target) { return None }
 
-        const DIVISOR_THRESHOLD: u64 = 1 << 40; // TODO: benchmark this
+        const DIVISOR_THRESHOLD: u64 = 1 << 36;
         if target < DIVISOR_THRESHOLD {
             Some(self.divisor_naive(target))
         } else {
@@ -239,7 +241,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     }
 
     // Get a factor by naive trials
-    fn divisor_naive(&mut self, target: u64) -> u64 {
+    pub fn divisor_naive(&mut self, target: u64) -> u64 {
         debug_assert!(!self.is_prime(target));
         *self.primes(num_integer::sqrt(target) + 1).iter()
             .filter(|&x| target % x == 0)
@@ -247,7 +249,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating to minimize python <-
     }
 
     // Get a factor using pollard_rho
-    fn divisor_rho(&self, target: u64) -> u64 {
+    pub fn divisor_rho(&self, target: u64) -> u64 {
         debug_assert!(!self.is_prime(target));
         loop {
             let offset = random::<u64>() % target;

@@ -4,6 +4,7 @@ use num_traits::{Zero, ToPrimitive};
 use crate::traits::{ModInt, ArithmeticHelpers};
 
 /// Returns floor(log(2, target))
+/// XXX: This api is introduced in nightly Rust
 #[inline]
 pub fn lb(target: &BigUint) -> u64 {
     assert_ne!(target, &BigUint::zero());
@@ -12,7 +13,7 @@ pub fn lb(target: &BigUint) -> u64 {
 
 /// Returns floor(log(base, target))
 /// Reference: https://stackoverflow.com/questions/6827516/logarithm-for-biginteger
-/// TODO: this could be further optimized using limbs
+/// TODO: implement this using https://guava.dev/releases/19.0/api/docs/src-html/com/google/common/math/BigIntegerMath.html#line.129
 #[inline]
 pub fn log(target: &BigUint, base: &BigUint) -> u64 {
     assert_ne!(target, &BigUint::zero());

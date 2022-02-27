@@ -1,4 +1,4 @@
-use num_traits::{FromPrimitive, Zero, One, RefNum};
+use num_traits::{FromPrimitive, Zero, One, RefNum, NumRef};
 use num_integer::{Integer, sqrt};
 use num_bigint::BigInt;
 use std::ops::Neg;
@@ -10,41 +10,56 @@ pub struct QuadraticSurd<T> {
     a: T, b: T, c: T, r: T
 }
 
+impl<T> QuadraticSurd<T> {
+    #[inline]
+    pub const fn new_raw(a: T, b: T, c: T, r: T) -> QuadraticSurd<T> {
+        QuadraticSurd { a, b, c, r }
+    }
+}
+
 impl<T> QuadraticSurd<T> 
-where T: Integer + Neg<Output = T> + FromPrimitive,
-for<'r> &'r T: RefNum<T>
+where T: Integer + NumRef,
+// for<'r> &'r T: RefNum<T>
 {
-    pub fn new(a: T, b: T, c: T, r: T) -> Self {
-        // TODO: factorize r
-        assert!(r > Zero::zero()); // TODO: it's possible to support r < 0, but we need complex number
+    // TODO: add method to reduce root r
 
-        let (a, b, c) = if c >= Zero::zero() {
-            (a, b, c)
-        } else {
-            (-a, -b, -c)
-        };
-
-        let g = a.gcd(&b).gcd(&c);
-        QuadraticSurd { r,
-            a: a.div_floor(&g),
-            b: b.div_floor(&g),
-            c: c.div_floor(&g),
+    fn reduce(&mut self) {
+        if self.c.is_zero() {
+            panic!("denominator == 0");
         }
+
+        // reduce common divisor
+        let g = self.a.gcd(&self.b).gcd(&self.c);
+        self.a = self.a / &g;
+        self.b = self.b / &g;
+        self.c = self.c / g;
+
+        // keep denom positive
+        if self.c < T::zero() {
+            self.a = T::zero() - &self.a;
+            self.b = T::zero() - &self.b;
+            self.c = T::zero() - &self.c;
+        }
+    }
+
+    pub fn new(a: T, b: T, c: T, r: T) -> Self {
+        assert!(r > Zero::zero()); // TODO: it's possible to support r < 0, but we might need complex number
+
+        let mut ret = QuadraticSurd::new_raw(a, b, c, r);
+        ret.reduce();
+        ret
     }
 
     pub fn from_sqrt(target: T) -> Self {
         QuadraticSurd {
-            a: T::from_u64(0).unwrap(), 
-            b: T::from_u64(1).unwrap(),
-            c: T::from_u64(1).unwrap(),
-            r: target
+            a: T::zero(), b: T::one(), c: T::one(), r: target
         }
     }
 
-    pub fn inverse(self) -> Self {
+    pub fn recip(self) -> Self {
         let bb = &self.b * &self.b;
         QuadraticSurd::new(
-            -(&self.c * &self.a),
+            T::zero() - &self.c * &self.a,
             &self.c * &self.b,
             &bb * &self.r - &self.a * &self.a,
             self.r

@@ -14,7 +14,8 @@ pub fn log(target: u64, base: u64) -> u8 {
     assert_ne!(target, 0);
     match base {
         2 => lb(target),
-        _ => (target as f32).log(base as f32) as u8
+        10 => (target as f64).log10() as u8,
+        _ => (target as f64).log(base as f64) as u8
     }
 }
 
